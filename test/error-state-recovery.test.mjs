@@ -64,7 +64,7 @@ test('engine stays in error state after host function throws in body', async () 
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | !boom();')
+  engine.addRules('fail @ a() ==> true | boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -78,7 +78,7 @@ test('error state rejects all mutating operations', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | !boom();')
+  engine.addRules('fail @ a() ==> true | boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -108,7 +108,7 @@ test('error state allows read-only operations', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | !boom();')
+  engine.addRules('fail @ a() ==> true | boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -124,7 +124,7 @@ test('new engine instance recovers from error state', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | !boom();')
+  engine.addRules('fail @ a() ==> true | boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -144,7 +144,7 @@ test('engine clear does not recover from error state', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | !boom();')
+  engine.addRules('fail @ a() ==> true | boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
