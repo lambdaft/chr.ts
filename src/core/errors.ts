@@ -36,3 +36,20 @@ export class CHRExecutionError extends Error {
     this.cause = cause as Error | undefined
   }
 }
+
+/**
+ * Internal error class used to signal that a guard evaluation failed.
+ * These are caught by the engine and treated as guard failures (rule does not fire),
+ * not as fatal engine errors.
+ */
+export class CHRGuardError extends Error {
+  readonly span: SourceSpan | undefined
+  override readonly cause: Error | undefined
+
+  constructor (message: string, span?: SourceSpan, cause?: Error) {
+    super(message, { cause })
+    this.name = 'CHRGuardError'
+    this.span = span
+    this.cause = cause as Error | undefined
+  }
+}

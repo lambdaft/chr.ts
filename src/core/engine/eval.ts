@@ -1,8 +1,9 @@
 import type { Expression, RuleNode } from '../ast.js'
 import type { ConstraintRecord } from '../constraint.js'
-import { CHRExecutionError } from '../errors.js'
+import { CHRExecutionError, CHRGuardError } from '../errors.js'
 import { evaluateBinary } from '../utils.js'
 import type { ConstraintStore } from '../store.js'
+import type { CHREngine } from '../engine.js'
 
 interface EvalDeps {
   readonly functions: Map<string, (ctx: unknown, ...args: unknown[]) => unknown | Promise<unknown>>
@@ -13,6 +14,8 @@ interface EvalDeps {
     has(ruleName: string, ids: number[]): boolean
     notIn(ruleName: string, ids: number[]): boolean
   }
+  readonly isGuard: boolean
+  readonly engine: CHREngine | undefined
   suggestSimilar(name: string, registry: Map<string, unknown>): string
 }
 
@@ -84,6 +87,13 @@ export async function evaluateExpression (
   try {
     return await callHostFunction(deps, fn, expr.callee, rule, matched, bindings, args)
   } catch (error) {
+    if (deps.isGuard) {
+      throw new CHRGuardError(
+        `Guard function ${expr.callee} failed in rule ${rule.name ?? 'anonymous'}: ${(error as Error).message}`,
+        rule.span,
+        error as Error
+      )
+    }
     throw new CHRExecutionError(
       `Host function ${expr.callee} threw in rule ${rule.name ?? 'anonymous'}: ${(error as Error).message}`,
       rule.span,
@@ -103,7 +113,7 @@ async function callHostFunction (
 ): Promise<unknown> {
   const result = fn(
     {
-      engine: undefined as unknown,
+      engine: deps.engine,
       store: deps.store,
       history: deps.history,
       rule,
