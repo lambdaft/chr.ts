@@ -59,12 +59,12 @@ test('engine rejects addProgram during running', async () => {
   await promise
 })
 
-test('engine stays in error state after host function throws in body', async () => {
+test('engine stays in error state after host action throws in body', async () => {
   const engine = new CHREngine()
-  engine.registerFunction('boom', () => {
+  engine.registerAction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | boom();')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -75,10 +75,10 @@ test('engine stays in error state after host function throws in body', async () 
 
 test('error state rejects all mutating operations', async () => {
   const engine = new CHREngine()
-  engine.registerFunction('boom', () => {
+  engine.registerAction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | boom();')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -105,10 +105,10 @@ test('error state rejects all mutating operations', async () => {
 
 test('error state allows read-only operations', async () => {
   const engine = new CHREngine()
-  engine.registerFunction('boom', () => {
+  engine.registerAction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | boom();')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -121,10 +121,10 @@ test('error state allows read-only operations', async () => {
 
 test('new engine instance recovers from error state', async () => {
   const engine = new CHREngine()
-  engine.registerFunction('boom', () => {
+  engine.registerAction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | boom();')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -141,10 +141,10 @@ test('new engine instance recovers from error state', async () => {
 
 test('engine clear does not recover from error state', async () => {
   const engine = new CHREngine()
-  engine.registerFunction('boom', () => {
+  engine.registerAction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> true | boom();')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -174,13 +174,13 @@ test('error state after action throw preserves cause', async () => {
   assert.equal(engine.getState(), 'error')
 })
 
-test('error state from async host function timeout in body', async () => {
+test('error state from async host function timeout in guard', async () => {
   const engine = new CHREngine({ hostFunctionTimeout: 50 })
   engine.registerFunction('hang', async () => {
     await new Promise((resolve) => setTimeout(resolve, 10000))
     return true
   })
-  engine.addRules('hang @ a() ==> true | !hang();')
+  engine.addRules('hang @ a() ==> hang() | ok;')
 
   await engine.assert('a', [])
   assert.equal(engine.store.lookup('ok', 0).length, 0)
