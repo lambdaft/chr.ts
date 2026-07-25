@@ -191,4 +191,4 @@ export class CHREngine {
     for (const declaration of program.actionDeclarations) this.applyActionDeclaration(declaration)
     for (const imprt of program.hostImports) this.applyHostImport(imprt)
     for (const rule of program.rules) { this.addRule(rule); this.checkMatchingAndShadowing(rule); this.scanRuleUsage(rule, unusedFunctions, unusedActions) }
-    for (const name of unusedFunctions) this.warnings.push(`Unused function declaration: f
+    for (const name of unusedFunctions) this.warnings.push(`Unused function declaration: 
