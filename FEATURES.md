@@ -1092,3 +1092,70 @@ try {
 
 This follows the ECMAScript `Error.cause` convention, enabling proper error
 diagnosis in production.
+
+## 33. Shared Utilities Module (`src/core/utils.ts`)
+
+CHR.ts provides a shared utilities module that consolidates common
+expression evaluation and type-checking helpers used by the engine
+and built-in host functions:
+
+### `numeric(value)`
+
+Validates that a value is a number and returns it. Replaces the
+inline type-checking pattern used throughout guard and body expression
+evaluation.
+
+```typescript
+import { numeric } from "chr-ts"
+numeric(42)   // 42
+numeric("42") // throws CHRExecutionError
+```
+
+### `compare(left, right, predicate)`
+
+Compares two numeric values using a comparison predicate function.
+Used by built-in relational operators (lt, lte, gt, gte).
+
+```typescript
+import { compare } from "chr-ts"
+compare(3, 5, (a, b) => a < b)  // true
+compare(5, 3, (a, b) => a < b)  // false
+```
+
+### `evaluateBinary(operator, left, right)`
+
+Evaluates a binary arithmetic or comparison expression. Handles
+short-circuit operators (`||`, `&&`), strict equality (`===`, `!==`),
+relational comparisons (`<`, `<=`, `>`, `>=`), arithmetic (`+`, `-`,
+`*`, `/`), and the `in` operator for array membership.
+
+```typescript
+import { evaluateBinary } from "chr-ts"
+evaluateBinary("+", 3, 4)   // 7
+evaluateBinary(">", 5, 3)   // true
+evaluateBinary("in", 2, [1, 2, 3]) // true
+```
+
+---
+
+## 34. Expression Evaluation Module (`src/core/engine/eval.ts`)
+
+The expression evaluation logic is extracted into a standalone module
+that can be imported independently. This separates expression evaluation
+concerns from the engine lifecycle, improving maintainability.
+
+### `evaluateExpression(deps, expr, rule, matched, bindings)`
+
+Evaluates a CHR expression (literal, variable, unary, binary, function call,
+or array) given the current engine state and variable bindings.
+
+The function receives dependency injection via its `deps` object,
+containing the function/action registries, constraint store, propagation
+history, and a `suggestSimilar` helper for typo detection.
+
+### `withTimeout(deps, promise, name, rule)`
+
+Wraps a host function call with an optional timeout. If the host
+function does not resolve within the configured
+`hostFunctionTimeout` milliseconds, the rule firing is aborted
+with a `CHRExecutionError`.

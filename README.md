@@ -24,6 +24,8 @@ It does **not** carry forward the most fragile parts of the original CHR.js impl
 - Propagation history with order-independent hashing (loop prevention)
 - Rule priority (higher fires first), rule-fire tracing with timing
 - Engine state machine (`empty → ready → running → error`)
+- Optional host function timeout for async safety
+- Module extraction (engine/eval.ts, utils.ts) for maintainability
 - Typed constraint API via `withConstraints<T>()`
 - Test DSL (`expect(name, args).exists() / .missing() / .count(n)`)
 - Validation (dry-run), source-span error diagnostics, error cause chaining
@@ -313,7 +315,10 @@ This project is currently in bootstrap form with:
 - 22 built-in host functions,
 - convenience loader for one-shot engine setup,
 - multi-head join and repeated-variable matching,
-- **logical variable unification** via the `unify` keyword.
+- **structural unification** via the `unify` keyword,
+- shared utilities module (`utils.ts`) with `numeric`, `compare`, `evaluateBinary`,
+- extracted expression evaluation module (`engine/eval.ts`),
+- type-safe `exports` field and `prepare` script for publishing.
 
 ## Initial Design Goals
 
@@ -332,14 +337,17 @@ src/
     builtins.ts
     constraint.ts
     engine.ts
+    engine/
+      eval.ts
     errors.ts
     history.ts
     host.ts
     loader.ts
     parser.ts
     store.ts
-    unification.ts
     substitution.ts
+    unification.ts
+    utils.ts
   index.ts
 docs/
   CHR_TS_SPEC.md
