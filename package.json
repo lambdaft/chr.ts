@@ -1,0 +1,27 @@
+{
+  "name": "chr-ts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A fresh TypeScript-first CHR engine inspired by mature CHR implementations and the original CHR.js research prototype.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "bundle": "esbuild dist/index.js --bundle --platform=node --format=esm --outfile=dist/bundle.mjs --minify",
+    "test": "npm run build && node --test test/**/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "chr",
+    "constraint-handling-rules",
+    "typescript",
+    "rule-engine"
+  ],
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.9.2"
+  }
+}

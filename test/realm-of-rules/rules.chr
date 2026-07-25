@@ -1,0 +1,252 @@
+import host builtins;
+import host realm;
+
+constraint turn/1;
+constraint gold/1, food/1, wood/1, stone/1;
+constraint population/1, happiness/1, mana/1;
+constraint has_building/2, building_progress/2;
+constraint army/3, fortification/1;
+constraint weather/1, season/1;
+constraint quest/2;
+constraint relation/3, treaty/2;
+constraint research/2, technology/1;
+constraint command/3, tick/0;
+constraint monster/2, battle/1;
+constraint calc_gold/1, calc_food/1, calc_wood/1, calc_stone/1;
+constraint calc_pop/1, calc_mana/0, calc_happiness/0;
+# example code.
+% example code
+-- example code
+functions goldProd/1, foodProd/1, woodProd/1, stoneProd/1;
+functions foodConsumption/1, popGrowth/2, popCap/1;
+functions happinessCalc/4, combatPower/3;
+functions canAfford/4, cannotAfford/4;
+functions constructionCost/2, buildTime/2, upgradeCost/2;
+functions monsterReward/1, tradeValue/3;
+functions researchCost/1, weatherChance/1;
+functions healingAmt/1;
+
+actions log/2, spawnArmy/3;
+actions giveGold/1, giveFood/1, giveWood/1, giveStone/1, giveMana/1;
+actions consumeGold/1, consumeFood/1, consumeWood/1, consumeStone/1;
+actions modifyRelation/3, applyDamage/1;
+actions setWeather/1;
+actions setHappiness/1, unlockTech/1;
+actions addQuest/1;
+actions setBuilding/2;
+actions boostArmy/2;
+
+advance @ tick, turn(T), has_building('village', Lvl)
+    <=> has_building('village', Lvl),
+        turn(add(T, 1)),
+        calc_gold(Lvl), calc_food(Lvl), calc_wood(Lvl), calc_stone(Lvl),
+        calc_pop(Lvl), calc_mana, calc_happiness;
+
+advance_fallback @ tick, turn(T)
+    <=> turn(add(T, 1)),
+        calc_gold(1), calc_food(1), calc_wood(1), calc_stone(1),
+        calc_pop(1), calc_mana, calc_happiness;
+
+turn_cleanup @ turn(T) <=> gt(T, 9999) | turn(1);
+
+calc_gold_prod @ calc_gold(Lvl), gold(G) <=> gold(add(G, goldProd(Lvl)));
+calc_gold_cap @ calc_gold(Lvl), gold(G) ==> gt(G, 99999) | gold(99999);
+calc_gold_floor @ calc_gold(Lvl), gold(G) ==> lt(G, 0) | gold(0);
+calc_gold_done @ calc_gold(Lvl) <=> true;
+
+calc_food_prod @ calc_food(Lvl), food(F), population(P)
+    <=> food(add(F, sub(foodProd(Lvl), foodConsumption(P)))), population(P);
+calc_food_min @ calc_food(Lvl), food(F) ==> lt(F, 0) | food(0);
+calc_food_done @ calc_food(Lvl) <=> true;
+
+calc_wood_prod @ calc_wood(Lvl), wood(W) <=> wood(add(W, woodProd(Lvl)));
+calc_wood_min @ calc_wood(Lvl), wood(W) ==> lt(W, 0) | wood(0);
+calc_wood_done @ calc_wood(Lvl) <=> true;
+
+calc_stone_prod @ calc_stone(Lvl), stone(S) <=> stone(add(S, stoneProd(Lvl)));
+calc_stone_min @ calc_stone(Lvl), stone(S) ==> lt(S, 0) | stone(0);
+calc_stone_done @ calc_stone(Lvl) <=> true;
+
+calc_pop_grow @ calc_pop(Lvl), population(P), happiness(H)
+    <=> population(add(P, popGrowth(H, Lvl))), happiness(H);
+calc_pop_cap @ calc_pop(Lvl), population(P) ==> gt(P, popCap(Lvl)) | population(popCap(Lvl));
+calc_pop_floor @ calc_pop(Lvl), population(P) ==> lt(P, 1) | population(1);
+calc_pop_done @ calc_pop(Lvl) <=> true;
+
+calc_mana_gen @ calc_mana, mana(M) <=> mana(add(M, 2));
+calc_mana_max @ calc_mana, mana(M) ==> gt(M, 9999) | mana(9999);
+calc_mana_done @ calc_mana <=> true;
+
+calc_happy_calc @ calc_happiness, happiness(H), population(P), food(F)
+    <=> happiness(happinessCalc(H, P, F, 1)), population(P), food(F);
+calc_happy_famine @ calc_happiness, happiness(H), food(F) ==> lt(F, 0) | happiness(20);
+calc_happy_min @ calc_happiness, happiness(H) ==> lt(H, 0) | happiness(0);
+calc_happy_max @ calc_happiness, happiness(H) ==> gt(H, 100) | happiness(100);
+calc_happy_done @ calc_happiness <=> true;
+
+calc_weather @ calc_happiness, weather(W) ==> !setWeather(weatherChance(W));
+calc_season @ calc_happiness, season(S) ==> !log('season', S);
+
+calc_army_heal @ calc_happiness, army(T, C, X), happiness(H)
+    <=> army(T, C, add(X, healingAmt(H))), happiness(H);
+
+calc_famine @ calc_happiness, food(F) ==> lt(F, 0) | !applyDamage(mul(sub(0, F), 2));
+
+build_start @ command('build', B, _), gold(G), wood(W), stone(S)
+    ==> canAfford(B, G, W, S)
+    | !consumeGold(constructionCost(B, 0)),
+      !consumeWood(constructionCost(B, 1)),
+      !consumeStone(constructionCost(B, 2)),
+      building_progress(B, 0);
+
+build_fail @ command('build', B, _), gold(G), wood(W), stone(S)
+    ==> cannotAfford(B, G, W, S) | !log('need_resources', B);
+
+build_progress @ has_building('village', Lvl) \ building_progress(B, P)
+    <=> lt(P, 100) | building_progress(B, add(P, buildTime(Lvl, B)));
+
+build_done @ building_progress(B, 100) ==> !setBuilding(B, 1), !log('built', B);
+build_clean @ building_progress(B, 100) <=> true;
+
+upgrade @ command('upgrade', B, _), has_building(B, Lvl), gold(G)
+    ==> gt(G, upgradeCost(B, Lvl))
+    | !consumeGold(upgradeCost(B, Lvl)), !setBuilding(B, add(Lvl, 1));
+
+train @ command('train', U, C), gold(G)
+    ==> gt(G, mul(C, 10))
+    | !consumeGold(mul(C, 10)), !spawnArmy(U, C, 1);
+
+train_elite @ command('train', 'elite', C), has_building('barracks', Lvl)
+    ==> gte(Lvl, 2) | !spawnArmy('elite', C, 3);
+
+army_strength @ army(U, C, X), has_building('barracks', Lvl)
+    ==> !log('strength', combatPower(U, C, X));
+
+attack @ command('attack', Tgt, _), army('soldier', C, X)
+    <=> gt(C, 0) | battle(combatPower('soldier', C, X));
+
+battle_win @ battle(Pwr), monster('dragon', MP)
+    ==> gt(Pwr, MP) | !giveGold(monsterReward(MP));
+
+battle_lose @ battle(Pwr), monster('dragon', MP)
+    ==> lte(Pwr, MP) | !applyDamage(MP);
+
+battle_clean @ battle(Pwr) <=> true;
+
+scout @ command('scout', _, _), population(P)
+    <=> gte(P, 10) | monster('dragon', mul(P, 2));
+
+scout_safe @ command('scout', _, _), population(P)
+    <=> lt(P, 10) | !log('safe', P);
+
+fortify @ command('fortify', L, _), gold(G)
+    ==> gt(G, mul(L, 100)) | !consumeGold(mul(L, 100)), fortification(L);
+
+fortify_max @ fortification(Lvl) <=> gt(Lvl, 10) | fortification(10);
+
+festival @ command('festival', _, _), gold(G)
+    ==> gt(G, 200) | !consumeGold(200), !setHappiness(90);
+
+invest @ command('invest', A, _), gold(G)
+    ==> gte(G, A) | !consumeGold(A), !giveGold(add(A, div(A, 10)));
+
+trade_goods @ command('trade', _, _), has_building('market', Lvl), gold(G)
+    ==> gt(G, 10) | !consumeGold(10), !giveGold(mul(Lvl, 15));
+
+diplomacy_mission @ command('diplomacy', F, _), relation(F, R, V)
+    <=> relation(F, R, add(V, 5));
+
+embassy @ command('embassy', F, _)
+    <=> relation(F, 'neutral', 20);
+
+alliance @ command('alliance', F, _), relation(F, R, V)
+    <=> gt(V, 50) | treaty('ally', F), relation(F, R, add(V, 20));
+
+alliance_fail @ command('alliance', F, _), relation(F, _, V)
+    <=> lte(V, 50) | !log('low_trust', F);
+
+war_ally @ command('war', F, _), treaty('ally', F) <=> !log('betray', F);
+
+war_declare @ command('war', F, _), relation(F, R, V)
+    <=> relation(F, R, sub(V, 50));
+
+trade_port @ command('trade_port', _, _), has_building('port', Lvl), relation('merchant', R, V), gold(G)
+    ==> gt(G, 20) | !consumeGold(20), !giveGold(tradeValue(Lvl, R, V));
+
+research_start @ command('research', F, _), gold(G)
+    ==> gt(G, researchCost(F)) | !consumeGold(researchCost(F)), research(F, 0);
+
+research_progress @ has_building('library', Lvl) \ research(F, P)
+    <=> lt(P, 100) | research(F, add(P, mul(Lvl, 5)));
+
+research_done @ research(F, 100) ==> !unlockTech(F);
+research_clean @ research(F, 100) <=> true;
+
+tech_food @ technology('agriculture') ==> !giveFood(15);
+tech_stone @ technology('mining') ==> !giveStone(8);
+tech_mana @ technology('magic') ==> !giveMana(25);
+tech_army @ technology('warfare') ==> !boostArmy('soldier', 2), !boostArmy('elite', 2);
+
+temple_bless @ has_building('temple', Lvl), mana(M)
+    ==> gt(Lvl, 1), gt(M, 50) | !setHappiness(80);
+
+disaster @ has_building('temple', Lvl)
+    ==> lt(Lvl, 2) | !applyDamage(10);
+
+starvation_damage @ food(F) ==> lt(F, 0) | !applyDamage(mul(-1, F));
+famine_happy @ food(F) ==> lt(F, 0) | !setHappiness(20);
+
+defense_rating @ fortification(Lvl), has_building('wall', WL)
+    ==> !log('defense', add(Lvl, WL));
+
+army_report @ army(U, C, X)
+    ==> !log('army', U);
+
+resource_audit @ gold(G), food(F), wood(W), stone(S)
+    ==> !log('gold', G), !log('food', F), !log('wood', W), !log('stone', S);
+
+mine_report @ has_building('mine', Lvl) ==> !log('mine', goldProd(Lvl));
+farm_report @ has_building('farm', Lvl) ==> !log('farm', foodProd(Lvl));
+
+status_report @ command('status', _, _), gold(G), food(F), population(P), happiness(H)
+    ==> !log('gold', G), !log('food', F), !log('population', P), !log('happiness', H);
+
+relation_report @ relation(F, R, V) ==> !log('relation', F);
+
+monster_report @ monster(T, Pwr) ==> !log('monster', T);
+
+quest_start @ command('quest', _, _), population(P)
+    ==> gt(P, 10) | quest('adventure', 1);
+
+weather_report @ weather(W) ==> !log('weather', W);
+season_report @ season(S) ==> !log('season', S);
+
+research_report @ research(F, P) ==> !log('research', F);
+
+teach_trade @ has_building('market', Lvl), has_building('port', PL), relation('merchant', R, V), gold(G)
+    ==> gt(G, 5) | !consumeGold(5), !giveGold(tradeValue(min(Lvl, PL), R, V));
+
+grand_project @ command('grand', B, _), gold(G)
+    ==> gt(G, 1000) | !consumeGold(1000), !setBuilding(B, 1);
+
+elite_upgrade @ has_building('barracks', Lvl) \ army('elite', C, X)
+    <=> gte(Lvl, 3) | army('elite', C, add(X, 2));
+
+help @ command('help', _, _)
+    ==> !log('commands', 'build upgrade train attack fortify festival invest trade research diplomacy scout status help');
+
+pop_report @ population(P) ==> !log('population', P);
+
+village_info @ has_building('village', Lvl) ==> !log('village', Lvl);
+quest_info @ quest(N, S) ==> !log('quest', N);
+mana_report @ mana(M) ==> !log('mana', M);
+happiness_report @ happiness(H) ==> !log('happiness', H);
+
+fortify_wall @ fortification(Lvl), population(P) ==> !log('fort_ratio', div(Lvl, P));
+
+market_info @ has_building('market', Lvl) ==> !log('market', Lvl);
+barracks_info @ has_building('barracks', Lvl) ==> !log('barracks', Lvl);
+temple_info @ has_building('temple', Lvl) ==> !log('temple', Lvl);
+port_info @ has_building('port', Lvl) ==> !log('port', Lvl);
+farm_info @ has_building('farm', Lvl) ==> !log('farm', Lvl);
+mine_info @ has_building('mine', Lvl) ==> !log('mine', Lvl);

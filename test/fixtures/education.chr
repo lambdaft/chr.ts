@@ -1,0 +1,9 @@
+constraints submission/4, checked/4, scored/4, reviewed/4, published/4, archived/4;
+functions onTime/1, wordCountOk/2, passScore/1, reviewReady/1, publishable/1, addBonus/1;
+actions logGrade/2;
+
+check_submission @ submission(Student, Words, DaysLeft, Score) <=> onTime(DaysLeft) | !logGrade("check", Student), checked(Student, Words, DaysLeft, addBonus(Score));
+score_submission @ checked(Student, Words, DaysLeft, Score) <=> wordCountOk(Words, 2000) | !logGrade("score", Student), scored(Student, Words, DaysLeft, Score);
+review_submission @ scored(Student, Words, DaysLeft, Score) <=> passScore(Score) | !logGrade("review", Student), reviewed(Student, Words, DaysLeft, Score);
+publish_submission @ reviewed(Student, Words, DaysLeft, Score) <=> reviewReady(DaysLeft) | !logGrade("publish", Student), published(Student, Words, DaysLeft, Score);
+archive_submission @ published(Student, Words, DaysLeft, Score) <=> publishable(Score) | !logGrade("archive", Student), archived(Student, Words, DaysLeft, Score);

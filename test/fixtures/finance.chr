@@ -1,0 +1,9 @@
+constraints order/4, screened/4, priced/4, approved/4, hedged/4, booked/4;
+functions liquid/1, positive/1, withinRisk/1, hedgeNeeded/1, bookable/1, bump/1;
+actions audit/2;
+
+screen_order @ order(Symbol, Price, Volume, Risk) <=> liquid(Volume) | !audit("screen", Symbol), screened(Symbol, Price, Volume, Risk);
+price_order @ screened(Symbol, Price, Volume, Risk) <=> positive(Price) | !audit("price", Symbol), priced(Symbol, bump(Price), Volume, Risk);
+approve_order @ priced(Symbol, Price, Volume, Risk) <=> withinRisk(Risk) | !audit("approve", Symbol), approved(Symbol, Price, Volume, Risk);
+hedge_order @ approved(Symbol, Price, Volume, Risk) <=> hedgeNeeded(Volume) | !audit("hedge", Symbol), hedged(Symbol, Price, Volume, Risk);
+book_order @ hedged(Symbol, Price, Volume, Risk) <=> bookable(Price) | !audit("book", Symbol), booked(Symbol, Price, Volume, Risk);

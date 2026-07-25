@@ -1,0 +1,9 @@
+constraints shipment/4, sorted/4, routed/4, loaded/4, delivered/4, completed/4;
+functions routeReady/2, weightOk/1, dockReady/1, destinationOpen/1, completeWeight/1, incrementPriority/1;
+actions recordMove/2;
+
+sort_shipment @ shipment(Id, Weight, Priority, Hub) <=> routeReady(Weight, Priority) | !recordMove("sort", Id), sorted(Id, Weight, incrementPriority(Priority), Hub);
+route_shipment @ sorted(Id, Weight, Priority, Hub) <=> weightOk(Weight) | !recordMove("route", Id), routed(Id, Weight, Priority, Hub);
+load_shipment @ routed(Id, Weight, Priority, Hub) <=> dockReady(Hub) | !recordMove("load", Id), loaded(Id, Weight, Priority, Hub);
+deliver_shipment @ loaded(Id, Weight, Priority, Hub) <=> destinationOpen(Hub) | !recordMove("deliver", Id), delivered(Id, Weight, Priority, Hub);
+complete_shipment @ delivered(Id, Weight, Priority, Hub) <=> completeWeight(Weight) | !recordMove("complete", Id), completed(Id, Weight, Priority, Hub);

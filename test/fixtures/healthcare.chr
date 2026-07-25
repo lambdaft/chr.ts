@@ -1,0 +1,9 @@
+constraints patient/4, triaged/4, diagnosed/4, treated/4, observed/4, discharged/4;
+functions urgent/2, hasWard/1, treatable/1, stable/1, dischargeable/1, raiseSeverity/1;
+actions note/2;
+
+triage_patient @ patient(Name, Severity, Age, Ward) <=> urgent(Severity, Age) | !note("triage", Name), triaged(Name, raiseSeverity(Severity), Age, Ward);
+diagnose_patient @ triaged(Name, Severity, Age, Ward) <=> hasWard(Ward) | !note("diagnose", Name), diagnosed(Name, Severity, Age, Ward);
+treat_patient @ diagnosed(Name, Severity, Age, Ward) <=> treatable(Severity) | !note("treat", Name), treated(Name, Severity, Age, Ward);
+observe_patient @ treated(Name, Severity, Age, Ward) <=> stable(Severity) | !note("observe", Name), observed(Name, Severity, Age, Ward);
+discharge_patient @ observed(Name, Severity, Age, Ward) <=> dischargeable(Age) | !note("discharge", Name), discharged(Name, Severity, Age, Ward);

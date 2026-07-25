@@ -1,0 +1,9 @@
+constraints alert/4, triaged/4, correlated/4, contained/4, remediated/4, closed/4;
+functions suspicious/2, severityUp/1, blockable/1, remediable/1, closable/1, sourceKnown/1;
+actions logAlert/2;
+
+triage_alert @ alert(Host, Severity, Source, Zone) <=> suspicious(Severity, Source) | !logAlert("triage", Host), triaged(Host, severityUp(Severity), Source, Zone);
+correlate_alert @ triaged(Host, Severity, Source, Zone) <=> sourceKnown(Source) | !logAlert("correlate", Host), correlated(Host, Severity, Source, Zone);
+contain_alert @ correlated(Host, Severity, Source, Zone) <=> blockable(Zone) | !logAlert("contain", Host), contained(Host, Severity, Source, Zone);
+remediate_alert @ contained(Host, Severity, Source, Zone) <=> remediable(Severity) | !logAlert("remediate", Host), remediated(Host, Severity, Source, Zone);
+close_alert @ remediated(Host, Severity, Source, Zone) <=> closable(Severity) | !logAlert("close", Host), closed(Host, Severity, Source, Zone);
