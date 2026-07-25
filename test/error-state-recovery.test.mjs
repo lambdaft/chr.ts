@@ -59,12 +59,12 @@ test('engine rejects addProgram during running', async () => {
   await promise
 })
 
-test('engine stays in error state after host function throws', async () => {
+test('engine stays in error state after host function throws in body', async () => {
   const engine = new CHREngine()
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> boom() | ok;')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -78,7 +78,7 @@ test('error state rejects all mutating operations', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> boom() | ok;')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -108,7 +108,7 @@ test('error state allows read-only operations', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> boom() | ok;')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -124,7 +124,7 @@ test('new engine instance recovers from error state', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> boom() | ok;')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -144,7 +144,7 @@ test('engine clear does not recover from error state', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> boom() | ok;')
+  engine.addRules('fail @ a() ==> true | !boom();')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -174,13 +174,13 @@ test('error state after action throw preserves cause', async () => {
   assert.equal(engine.getState(), 'error')
 })
 
-test('error state from async host function timeout', async () => {
+test('error state from async host function timeout in body', async () => {
   const engine = new CHREngine({ hostFunctionTimeout: 50 })
   engine.registerFunction('hang', async () => {
     await new Promise((resolve) => setTimeout(resolve, 10000))
     return true
   })
-  engine.addRules('hang @ a() ==> hang() | ok;')
+  engine.addRules('hang @ a() ==> true | !hang();')
 
   await engine.assert('a', [])
   assert.equal(engine.store.lookup('ok', 0).length, 0)
@@ -200,4 +200,42 @@ test('multiple engines are independent', async () => {
   assert.equal(engine1.store.lookup('d', 0).length, 0)
   assert.equal(engine2.store.lookup('d', 0).length, 1)
   assert.equal(engine2.store.lookup('b', 0).length, 0)
+})
+
+test('guard error does not put engine in error state', async () => {
+  const engine = new CHREngine()
+  engine.registerFunction('failGuard', () => {
+    throw new Error('guard failed')
+  })
+  engine.addRules('guardFail @ a() ==> failGuard() | ok;')
+
+  await engine.assert('a', [])
+  assert.equal(engine.getState(), 'ready')
+  assert.equal(engine.store.lookup('ok', 0).length, 0)
+  assert.equal(engine.store.lookup('a', 0).length, 1)
+})
+
+test('guard error allows other rules to fire', async () => {
+  const engine = new CHREngine()
+  engine.registerFunction('failGuard', () => {
+    throw new Error('guard failed')
+  })
+  engine.addRules('guardFail @ a() ==> failGuard() | ok;')
+  engine.addRules('other @ a() ==> b;')
+
+  await engine.assert('a', [])
+  assert.equal(engine.getState(), 'ready')
+  assert.equal(engine.store.lookup('b', 0).length, 1)
+  assert.equal(engine.store.lookup('a', 0).length, 1)
+})
+
+test('guard returning false does not fire rule', async () => {
+  const engine = new CHREngine()
+  engine.registerFunction('check', () => false)
+  engine.addRules('guarded @ a() ==> check() | ok;')
+
+  await engine.assert('a', [])
+  assert.equal(engine.getState(), 'ready')
+  assert.equal(engine.store.lookup('ok', 0).length, 0)
+  assert.equal(engine.store.lookup('a', 0).length, 1)
 })
