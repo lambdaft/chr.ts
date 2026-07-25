@@ -1,0 +1,12 @@
+{
+  "name": "library",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node fixup.cjs",
+    "start": "node dist/library.js"
+  },
+  "imports": {
+    "#lib": "../dist/index.js"
+  }
+}

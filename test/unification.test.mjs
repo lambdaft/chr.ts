@@ -243,7 +243,7 @@ test('engine.getRulesByHead returns unification rules', async () => {
   const pathRules = engine.getRulesByHead('path')
   assert.equal(pathRules.length, 1)
   assert.equal(pathRules[0].unify, true)
-  assert.equal(pathRules[0].name, 'path_0')
+  assert.equal(pathRules[0].name, 'rule_0')
 })
 
 test('engine snapshot includes unify status', async () => {
@@ -282,7 +282,7 @@ test('unify does not fire when same variable gets conflicting values', async () 
 
 test('unify simpagation removed head is consumed', async () => {
   const engine = createEngineWithRules(
-    'unify path(X, Y) <= path(Y, Z) \\ path(Y, Z) ==> path(X, Z);'
+    'unify path(X, Y) \\ path(Y, Z) <=> path(X, Z);'
   )
 
   await engine.assertMany([

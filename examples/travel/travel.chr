@@ -1,0 +1,25 @@
+constraints flight/5, hotel/3, booking/4, passenger/2;
+functions duration/2, is_available/1, price/2, bookable/1, duration_hours/2;
+actions log/1;
+import host builtins;
+
+flight(X, Origin, Dest, Depart, Arrive) | gte(Arrive, Depart) \ flight(X, Origin, Dest, Depart, Arrive) ==>, flight(X, Origin, Dest, Depart, Arrive);
+hotel(X, Name, Available) | gte(Available, 1) \ hotel(X, Name, Available) ==>, hotel(X, Name, sub(Available, 1));
+booking(X, Flight, Hotel, Status) | eq(Status, "confirmed") \ booking(X, Flight, Hotel, Status) ==>, !log("Booking confirmed");
+passenger(X, Tier), booking(X, F, H, "confirmed") \ passenger(X, Tier), booking(X, F, H, "confirmed") ==>, !log("Passenger booked");
+flight(X, O, D, Dep, Arr), duration(Dep, Arr, Dur) | gte(Dur, 6) \ flight(X, O, D, Dep, Arr), duration(Dep, Arr, Dur) ==>, !log("Long flight");
+hotel(X, Name, Avail) | lt(Avail, 5) \ hotel(X, Name, Avail) ==>, !log(stringConcat("Low availability: ", Name));
+booking(X, F, H, "confirmed") \ booking(X, F, H, "confirmed") ==>, booking(X, F, H, "active");
+passenger(X, "vip") \ passenger(X, "vip") ==>, booking(X, "VIP", "Luxury", "confirmed");
+flight(X, O, D, Dep, Arr) \ flight(X, O, D, Dep, Arr) ==>, flight(X, O, D, Dep, Arr);
+hotel(X, Name, Avail) \ hotel(X, Name, Avail) ==>, hotel(X, Name, Avail);
+booking(X, F, H, Status) | eq(Status, "cancelled") \ booking(X, F, H, Status) ==>, !log("Booking cancelled");
+passenger(X, Tier) | eq(Tier, "economy") \ passenger(X, Tier) ==>, !log("Economy passenger");
+booking(X, F, H, S), price(F, P) \ booking(X, F, H, S), price(F, P) ==>, booking(X, F, H, S);
+flight(X, O, D, Dep, Arr) | is_available(Dep) \ flight(X, O, D, Dep, Arr) ==>, !log("Flight available");
+hotel(X, Name, Avail), bookable(Avail) \ hotel(X, Name, Avail), bookable(Avail) ==>, hotel(X, Name, Avail);
+booking(X, F, H, S) \ booking(X, F, H, S) ==>, booking(X, F, H, "paid");
+passenger(X, Tier), hotel(X, N, A), booking(X, F, H, "active") \ passenger(X, Tier), hotel(X, N, A), booking(X, F, H, "active") ==>, !log("Trip ready");
+flight(X, O, D, Dep, Arr), duration_hours(Dep, Arr, H) | lt(H, 1) \ flight(X, O, D, Dep, Arr), duration_hours(Dep, Arr, H) ==>, true;
+booking(X, F, H, S) | eq(S, "active") \ booking(X, F, H, S) ==>, !log("Active booking");
+passenger(X, Tier) \ passenger(X, Tier) ==>, passenger(X, Tier);

@@ -1,0 +1,25 @@
+constraints package/5, route/4, shipment/3, carrier/2;
+functions distance/2, ETA/2, is_valid/1, cost/2, on_time/1;
+actions log/1;
+import host builtins;
+
+package(X, Origin, Dest, Weight, Status) \ package(X, Origin, Dest, Weight, Status) ==>, package(X, Origin, Dest, Weight, "in-transit");
+route(X, Start, End, Waypoints) \ route(X, Start, End, Waypoints) ==>, route(X, Start, End, Waypoints);
+shipment(X, Tracking, Status) | eq(Status, "delivered") \ shipment(X, Tracking, Status) ==>, !log(stringConcat("Delivered: ", Tracking));
+carrier(X, Service) \ carrier(X, Service) ==>, carrier(X, Service);
+package(X, O, D, W, "in-transit"), route(X, O, D, WPs) \ package(X, O, D, W, "in-transit"), route(X, O, D, WPs) ==>, !log("Package on route");
+shipment(X, T, S), carrier(X, C) \ shipment(X, T, S), carrier(X, C) ==>, shipment(X, T, "dispatched");
+route(X, Start, End, WPs), distance(Start, End, D) | gt(D, 1000) \ route(X, Start, End, WPs), distance(Start, End, D) ==>, !log("Long route");
+package(X, O, D, W, S) | lt(W, 1) \ package(X, O, D, W, S) ==>, true;
+shipment(X, Tracking, "pending") \ shipment(X, Tracking, "pending") ==>, shipment(X, Tracking, "processing");
+carrier(X, Service), on_time(Service) \ carrier(X, Service), on_time(Service) ==>, !log("On-time carrier");
+package(X, O, D, W, S), ETA(O, D, ETA) | lt(ETA, 24) \ package(X, O, D, W, S), ETA(O, D, ETA) ==>, !log("Express delivery");
+route(X, Start, End, WPs) \ route(X, Start, End, WPs) ==>, route(X, Start, End, WPs);
+shipment(X, T, S), cost(S, C) \ shipment(X, T, S), cost(S, C) ==>, !log("Cost estimated");
+carrier(X, Service) \ carrier(X, Service) ==>, carrier(X, Service);
+package(X, O, D, W, "delivered"), shipment(X, T, "delivered") \ package(X, O, D, W, "delivered"), shipment(X, T, "delivered") ==>, !log("Delivery confirmed");
+route(X, Start, End, WPs) | is_valid(WPs) \ route(X, Start, End, WPs) ==>, !log("Valid route");
+shipment(X, T, S), ETA(T, S, E) | gte(E, 48) \ shipment(X, T, S), ETA(T, S, E) ==>, !log("Slow shipment");
+package(X, O, D, W, S) \ package(X, O, D, W, S) ==>, package(X, O, D, W, S);
+carrier(X, Service), shipment(X, T, S) \ carrier(X, Service), shipment(X, T, S) ==>, !log("Carrier assigned");
+route(X, Start, End, WPs), package(X, O, D, W, S) | eq(Start, O), eq(End, D) \ route(X, Start, End, WPs), package(X, O, D, W, S) ==>, !log("Route matches");

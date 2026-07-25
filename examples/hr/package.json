@@ -1,0 +1,12 @@
+{
+  "name": "hr",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node fixup.cjs",
+    "start": "node dist/hr.js"
+  },
+  "imports": {
+    "#lib": "../dist/index.js"
+  }
+}

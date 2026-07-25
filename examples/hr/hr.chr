@@ -1,0 +1,25 @@
+constraints employee/4, leave/4, review/3, department/2;
+functions tenure/1, eligible_for_leave/1, score/1, budget/1, headcount/1;
+actions log/1;
+import host builtins;
+
+employee(X, Name, Dept, Role) \ employee(X, Name, Dept, Role) ==>, employee(X, Name, Dept, Role);
+leave(X, Start, End, Type) | eq(Type, "sick") \ leave(X, Start, End, Type) ==>, leave(X, Start, End, "medical");
+review(X, Score, Feedback) | gte(Score, 90) \ review(X, Score, Feedback) ==>, !log("Excellent review");
+employee(X, Name, Dept, Role), tenure(Name) \ employee(X, Name, Dept, Role), tenure(Name) ==>, !log("Tenured employee");
+leave(X, Start, End, Type), eligible_for_leave(X) \ leave(X, Start, End, Type), eligible_for_leave(X) ==>, leave(X, Start, End, "approved");
+department(X, Budget) | gt(Budget, 100000) \ department(X, Budget) ==>, !log("Large department");
+review(X, Score, Feedback) \ review(X, Score, Feedback) ==>, review(X, Score, "completed");
+employee(X, Name, Dept, Role), headcount(Dept) \ employee(X, Name, Dept, Role), headcount(Dept) ==>, !log("Dept count updated");
+leave(X, Start, End, Type) | eq(Type, "vacation") \ leave(X, Start, End, Type) ==>, !log("Vacation leave taken");
+department(X, Name) \ department(X, Name) ==>, department(X, Name);
+employee(X, Name, Dept, Role), review(X, Score, F) | lt(Score, 60) \ employee(X, Name, Dept, Role), review(X, Score, F) ==>, !log("Performance plan");
+leave(X, Start, End, Type) | lt(End, Start) \ leave(X, Start, End, Type) ==>, true;
+review(X, Score, Feedback), score(Score) \ review(X, Score, Feedback), score(Score) ==>, !log("Score recorded");
+employee(X, Name, Dept, Role), budget(Dept) \ employee(X, Name, Dept, Role), budget(Dept) ==>, !log("Budget reviewed");
+leave(X, Start, End, Type), employee(X, Name, Dept, Role) \ leave(X, Start, End, Type), employee(X, Name, Dept, Role) ==>, !log(stringConcat("Leave recorded for ", Name));
+employee(X, Name, Dept, Role) | eq(Role, "manager") \ employee(X, Name, Dept, Role) ==>, !log(stringConcat("Manager: ", Name));
+review(X, Score, Feedback) | gte(Score, 80), lte(Score, 89) \ review(X, Score, Feedback) ==>, !log("Good review");
+leave(X, S, E, T) \ leave(X, S, E, T) ==>, leave(X, S, E, T);
+department(X, B), employee(X, N, D, R) \ department(X, B), employee(X, N, D, R) ==>, !log("Dept-employee linked");
+employee(X, Name, Dept, Role) \ employee(X, Name, Dept, Role) ==>, employee(X, Name, Dept, Role);

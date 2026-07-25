@@ -1,15 +1,5 @@
-import type { HostFunction, HostModule } from './engine.js'
-
-function numeric (value: unknown): number {
-  if (typeof value !== 'number') {
-    throw new Error(`Expected number, got ${typeof value}`)
-  }
-  return value
-}
-
-function compare (left: unknown, right: unknown, op: (a: number, b: number) => boolean): boolean {
-  return op(numeric(left), numeric(right))
-}
+import type { HostFunction, HostModule } from "./engine.js"
+import { compare, numeric } from "./utils.js"
 
 export const BuiltinFunctions: Record<string, HostFunction> = {
   eq: (_ctx, a, b) => a === b,

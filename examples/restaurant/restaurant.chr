@@ -1,0 +1,25 @@
+constraints reservation/5, table/3, order/4, menu_item/4;
+functions available/1, prep_time/1, total/2, rating/1, is_ready/1;
+actions log/1;
+import host builtins;
+
+reservation(X, Name, Time, PartySize, Status) | eq(Status, "confirmed") \ reservation(X, Name, Time, PartySize, Status) ==>, !log("Reservation confirmed");
+table(X, Seats, Status) | gte(Seats, PartySize), available(Status) \ table(X, Seats, Status) ==>, table(X, Seats, "occupied");
+order(X, Items, Total, Status) | eq(Status, "pending") \ order(X, Items, Total, Status) ==>, !log("Order received");
+menu_item(X, Name, Price, Category) | lt(Price, 0) \ menu_item(X, Name, Price, Category) ==>, true;
+reservation(X, Name, Time, PartySize, Status) \ reservation(X, Name, Time, PartySize, Status) ==>, reservation(X, Name, Time, PartySize, "seated");
+table(X, Seats, Status), prep_time(Seats) \ table(X, Seats, Status), prep_time(Seats) ==>, table(X, Seats, "ready");
+order(X, Items, Total, "preparing") \ order(X, Items, Total, "preparing") ==>, order(X, Items, Total, "ready");
+menu_item(X, Name, Price, Category) \ menu_item(X, Name, Price, Category) ==>, menu_item(X, Name, Price, Category);
+order(X, Items, Total, Status), is_ready(Status) \ order(X, Items, Total, Status), is_ready(Status) ==>, !log("Order ready to serve");
+reservation(X, Name, Time, PartySize, Status), table(X, Seats, "occupied") \ reservation(X, Name, Time, PartySize, Status), table(X, Seats, "occupied") ==>, !log("Table assigned");
+order(X, Items, Total, Status), total(Items, T) | gt(T, 100) \ order(X, Items, Total, Status), total(Items, T) ==>, !log("Large order");
+table(X, Seats, Status) | lt(Seats, 1) \ table(X, Seats, Status) ==>, true;
+menu_item(X, Name, Price, Category), rating(Name) \ menu_item(X, Name, Price, Category), rating(Name) ==>, !log(stringConcat("Popular item: ", Name));
+reservation(X, Name, Time, PartySize, Status) | lt(PartySize, 1) \ reservation(X, Name, Time, PartySize, Status) ==>, true;
+order(X, Items, Total, Status), prep_time(Items) \ order(X, Items, Total, Status), prep_time(Items) ==>, order(X, Items, Total, "cooking");
+table(X, Seats, Status) \ table(X, Seats, Status) ==>, table(X, Seats, "available");
+reservation(X, Name, Time, PartySize, Status) \ reservation(X, Name, Time, PartySize, Status) ==>, reservation(X, Name, Time, PartySize, Status);
+menu_item(X, Name, Price, Category), order(X, Items, Total, Status) \ menu_item(X, Name, Price, Category), order(X, Items, Total, Status) ==>, !log("Item in order");
+order(X, Items, Total, Status) | eq(Status, "served") \ order(X, Items, Total, Status) ==>, !log("Order served");
+order(X, Items, Total, Status) \ order(X, Items, Total, Status) ==>, order(X, Items, Total, "completed");

@@ -1,0 +1,8 @@
+src/
+test/
+docs/
+examples/
+node_modules/
+.git/
+*.md
+!README.md

@@ -1,0 +1,12 @@
+{
+  "name": "healthcare",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node fixup.cjs",
+    "start": "node dist/healthcare.js"
+  },
+  "imports": {
+    "#lib": "../dist/index.js"
+  }
+}

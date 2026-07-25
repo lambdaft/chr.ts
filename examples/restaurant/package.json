@@ -1,0 +1,12 @@
+{
+  "name": "restaurant",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node fixup.cjs",
+    "start": "node dist/restaurant.js"
+  },
+  "imports": {
+    "#lib": "../dist/index.js"
+  }
+}

@@ -1,0 +1,25 @@
+constraints device/3, sensor/4, automation/4, alert/2;
+functions is_on/1, temp_c/1, motion/1, trigger/2, status/1;
+actions log/1;
+import host builtins;
+
+device(X, Type, State) | eq(State, "on") \ device(X, Type, State) ==>, !log(stringConcat("Device on: ", X));
+sensor(X, Type, Value, Threshold) | gt(Value, Threshold) \ sensor(X, Type, Value, Threshold) ==>, alert(X, "threshold exceeded");
+automation(X, Event, Condition, Action) | eq(Event, "motion") \ automation(X, Event, Condition, Action) ==>, !log("Motion automation triggered");
+alert(X, Msg) \ alert(X, Msg) ==>, !log(stringConcat("Alert: ", Msg)), alert(X, "acknowledged");
+device(X, "light", "on"), sensor(X, "motion", V, T) \ device(X, "light", "on"), sensor(X, "motion", V, T) ==>, device(X, "light", "off");
+sensor(X, "temp", C, T) | lt(C, T) \ sensor(X, "temp", C, T) ==>, automation(X, "cold", true, "heat");
+automation(X, Event, Cond, Action) | eq(Action, "notify") \ automation(X, Event, Cond, Action) ==>, alert(X, "notification");
+device(X, Type, State) \ device(X, Type, State) ==>, device(X, Type, "idle");
+sensor(X, Type, Value, Th), trigger(Type, true) \ sensor(X, Type, Value, Th), trigger(Type, true) ==>, !log("Sensor triggered");
+alert(X, Msg) | eq(Msg, "urgent") \ alert(X, Msg) ==>, !log("Urgent alert");
+automation(X, Event, Cond, Action), sensor(X, Type, V, T) \ automation(X, Event, Cond, Action), sensor(X, Type, V, T) ==>, automation(X, Event, Cond, "execute");
+device(X, "thermostat", Value) | eq(Value, 22) \ device(X, "thermostat", Value) ==>, !log("Comfort temp");
+sensor(X, Type, Value, Th), motion(Value) \ sensor(X, Type, Value, Th), motion(Value) ==>, !log("Motion detected");
+automation(X, Event, Cond, Action) \ automation(X, Event, Cond, Action) ==>, automation(X, Event, Cond, "pending");
+alert(X, Msg), device(X, Type, State) \ alert(X, Msg), device(X, Type, State) ==>, !log(stringConcat("Device alert: ", X));
+sensor(X, Type, Value, Th) \ sensor(X, Type, Value, Th) ==>, sensor(X, Type, Value, Th);
+device(X, "lock", "locked") \ device(X, "lock", "locked") ==>, !log("Door locked");
+automation(X, Event, true, Action) \ automation(X, Event, true, Action) ==>, !log("Auto-triggered");
+sensor(X, Type, Value, Th), automation(X, Type, Cond, Action) \ sensor(X, Type, Value, Th), automation(X, Type, Cond, Action) ==>, alert(X, "sensor-auto");
+device(X, Type, State), alert(X, Msg) \ device(X, Type, State), alert(X, Msg) ==>, !log(stringConcat("Device+alert: ", X));

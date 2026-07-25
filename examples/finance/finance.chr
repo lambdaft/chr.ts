@@ -1,0 +1,25 @@
+constraints portfolio/2, asset/4, investment/3, dividend/3;
+functions value/2, risk/1, return_rate/2, diversify/1, yield_pct/2;
+actions log/1;
+import host builtins;
+
+portfolio(X, Owner) \ portfolio(X, Owner) ==>, portfolio(X, Owner), !log("Portfolio loaded");
+asset(X, Type, Qty, Price) | gt(Price, 0) \ asset(X, Type, Qty, Price) ==>, asset(X, Type, Qty, Price);
+investment(X, Portfolio, Amount) \ investment(X, Portfolio, Amount) ==>, investment(X, Portfolio, add(Amount, 100));
+dividend(X, Stock, Amount) \ dividend(X, Stock, Amount) ==>, !log(stringConcat("Dividend: ", Amount));
+asset(X, Type, Qty, Price), value(Type, Price) \ asset(X, Type, Qty, Price), value(Type, Price) ==>, !log("Asset valued");
+portfolio(X, Owner), risk(Owner) \ portfolio(X, Owner), risk(Owner) ==>, !log("Risk assessed");
+investment(X, P, Amount) | gt(Amount, 10000) \ investment(X, P, Amount) ==>, !log("Large investment");
+asset(X, Type, Qty, Price), diversify(Type) \ asset(X, Type, Qty, Price), diversify(Type) ==>, !log("Diversified asset");
+dividend(X, Stock, Amount), return_rate(Stock, Rate) \ dividend(X, Stock, Amount), return_rate(Stock, Rate) ==>, !log("Return rate noted");
+portfolio(X, Owner) \ portfolio(X, Owner) ==>, portfolio(X, Owner);
+asset(X, Type, Qty, Price), investment(X, P, Amount) \ asset(X, Type, Qty, Price), investment(X, P, Amount) ==>, asset(X, Type, Qty, add(Price, 1));
+dividend(X, Stock, Amount), yield_pct(Stock, Y) | gt(Y, 3) \ dividend(X, Stock, Amount), yield_pct(Stock, Y) ==>, !log("High yield stock");
+investment(X, P, Amount) \ investment(X, P, Amount) ==>, investment(X, P, Amount);
+asset(X, Type, Qty, Price) | lt(Price, 1) \ asset(X, Type, Qty, Price) ==>, !log("Penny stock");
+portfolio(X, Owner), investment(X, P, A) \ portfolio(X, Owner), investment(X, P, A) ==>, !log("Portfolio updated");
+dividend(X, Stock, Amount) \ dividend(X, Stock, Amount) ==>, dividend(X, Stock, Amount);
+asset(X, Type, Qty, Price), return_rate(Type, R) \ asset(X, Type, Qty, Price), return_rate(Type, R) ==>, asset(X, Type, Qty, add(Price, R));
+portfolio(X, Owner), diversify(Owner) \ portfolio(X, Owner), diversify(Owner) ==>, !log("Diversify strategy");
+investment(X, P, Amount) | gte(Amount, 50000) \ investment(X, P, Amount) ==>, !log("Premium investment tier");
+asset(X, Type, Qty, Price), yield_pct(Type, Y) | gte(Y, 5) \ asset(X, Type, Qty, Price), yield_pct(Type, Y) ==>, !log("High yield asset");

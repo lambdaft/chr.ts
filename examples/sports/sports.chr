@@ -1,0 +1,25 @@
+constraints team/3, match/4, player/3, score/3;
+functions is_home/1, is_winning/2, is_draw/2, is_final/1, points/1;
+actions log/1;
+import host builtins;
+
+team(X, Name, Sport) \ team(X, Name, Sport) ==>, team(X, Name, Sport);
+match(X, Home, Away, Score) \ match(X, Home, Away, Score) ==>, match(X, Home, Away, [0, 0]);
+player(X, Team, Position) \ player(X, Team, Position) ==>, player(X, Team, Position);
+score(X, Player, Points) | gt(Points, 100) \ score(X, Player, Points) ==>, !log("High score!");
+match(X, Home, Away, S), is_home(Home), is_winning(S, "home") \ match(X, Home, Away, S), is_home(Home), is_winning(S, "home") ==>, !log("Home team winning");
+team(X, Name, Sport), player(X, Team, Pos) | eq(Team, Name) \ team(X, Name, Sport), player(X, Team, Pos) ==>, !log("Team-player match");
+score(X, Player, P), points(P) \ score(X, Player, P), points(P) ==>, !log("Points recorded");
+match(X, Home, Away, S), is_draw(S, "home", "away") \ match(X, Home, Away, S), is_draw(S, "home", "away") ==>, !log("Match tied");
+player(X, Team, Position), is_final(Position) \ player(X, Team, Position), is_final(Position) ==>, !log(stringConcat("Finalist: ", X));
+match(X, Home, Away, Score) \ match(X, Home, Away, Score) ==>, match(X, Home, Away, Score);
+team(X, Name, Sport) | gte(Name, 1) \ team(X, Name, Sport) ==>, !log("Team exists");
+score(X, Player, P) \ score(X, Player, P) ==>, score(X, Player, add(P, 1));
+player(X, Team, Pos), match(X, Home, Away, Score) \ player(X, Team, Pos), match(X, Home, Away, Score) ==>, !log("Player in match");
+match(X, Home, Away, Score), is_final(Score) \ match(X, Home, Away, Score), is_final(Score) ==>, !log("Final match");
+team(X, Name, Sport), score(X, Player, P) \ team(X, Name, Sport), score(X, Player, P) ==>, !log("Team scored");
+player(X, Team, Position) | eq(Position, "captain") \ player(X, Team, Position) ==>, !log(stringConcat("Captain: ", X));
+match(X, Home, Away, Score), is_winning(Score, "away") \ match(X, Home, Away, Score), is_winning(Score, "away") ==>, !log("Away team winning");
+score(X, Player, P) \ score(X, Player, P) ==>, score(X, Player, P);
+team(X, Name, Sport), match(X, Home, Away, Score) \ team(X, Name, Sport), match(X, Home, Away, Score) ==>, !log("Team played");
+player(X, Team, Position) \ player(X, Team, Position) ==>, player(X, Team, Position);

@@ -1,0 +1,25 @@
+constraints product/4, order/4, shipment/3, supplier/3;
+functions inventory_level/1, lead_time/1, cost/2, is_urgent/1, quality/1;
+actions log/1;
+import host builtins;
+
+product(X, Name, Qty, Location) | lt(Qty, 10) \ product(X, Name, Qty, Location) ==>, order(X, Name, "reorder", Qty);
+order(X, Product, Type, Qty) \ order(X, Product, Type, Qty) ==>, order(X, Product, Type, add(Qty, 1));
+shipment(X, Status) | eq(Status, "delivered") \ shipment(X, Status) ==>, !log("Shipment delivered");
+supplier(X, Name, Rating) | gt(Rating, 4) \ supplier(X, Name, Rating) ==>, supplier(X, Name, "preferred");
+product(X, Name, Qty, Location), order(X, Product, Type, Qty) \ product(X, Name, Qty, Location), order(X, Product, Type, Qty) ==>, shipment(X, "standard");
+order(X, Product, Type, Qty) | is_urgent(Type) \ order(X, Product, Type, Qty) ==>, shipment(X, "express");
+supplier(X, Name, Rating) \ supplier(X, Name, Rating) ==>, supplier(X, Name, Rating);
+shipment(X, Status), supplier(X, Name, R) \ shipment(X, Status), supplier(X, Name, R) ==>, !log("Supplier shipment");
+product(X, Name, Qty, Location), inventory_level(Qty) \ product(X, Name, Qty, Location), inventory_level(Qty) ==>, !log("Inventory level check");
+order(X, Product, Type, Qty), lead_time(Product) \ order(X, Product, Type, Qty), lead_time(Product) ==>, !log("Lead time checked");
+shipment(X, Status) \ shipment(X, Status) ==>, shipment(X, "in-transit");
+product(X, Name, Qty, Location), quality(Name) \ product(X, Name, Qty, Location), quality(Name) ==>, !log("Quality checked");
+supplier(X, Name, Rating), order(X, Product, Type, Qty) \ supplier(X, Name, Rating), order(X, Product, Type, Qty) ==>, order(X, Product, "fast", Qty);
+order(X, Product, Type, Qty) | eq(Type, "reorder") \ order(X, Product, Type, Qty) ==>, product(X, Product, 0, "warehouse");
+product(X, Name, Qty, Location) \ product(X, Name, Qty, Location) ==>, product(X, Name, Qty, Location);
+shipment(X, Status), cost(Status, C) \ shipment(X, Status), cost(Status, C) ==>, !log("Shipment cost");
+order(X, Product, Type, Qty) \ order(X, Product, Type, Qty) ==>, order(X, Product, "standard", Qty);
+supplier(X, Name, Rating) | lt(Rating, 2) \ supplier(X, Name, Rating) ==>, !log("Low quality supplier");
+product(X, Name, Qty, Location), cost(Qty, C) | gt(C, 5000) \ product(X, Name, Qty, Location), cost(Qty, C) ==>, !log("Expensive order");
+shipment(X, Status), order(X, Product, Type, Qty) \ shipment(X, Status), order(X, Product, Type, Qty) ==>, !log("Shipment linked");

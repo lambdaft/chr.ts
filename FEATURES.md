@@ -331,6 +331,25 @@ engine.registerHostModule('myModule', myModule)
 engine.registerBuiltins()
 ```
 
+### Registering Individual Functions and Actions
+
+```typescript
+engine.registerFunction('myFunc', (_ctx, a, b) => a + b)
+engine.registerFunctions({ fn1: handler1, fn2: handler2 })
+
+engine.registerAction('myAction', (ctx) => { /* side effect */ })
+engine.registerActions({ act1: handler1, act2: handler2 })
+```
+
+### Registering Multiple Host Modules
+
+```typescript
+engine.registerHostModules({
+  builtins: BuiltinsModule,
+  mymath: mathModule
+})
+```
+
 ### Importing from Source
 
 ```chr

@@ -1,0 +1,25 @@
+constraints device/3, reading/3, alert/3, config/3;
+functions is_online/1, measure/1, threshold/2, is_critical/1, calibrate/1;
+actions log/1;
+import host builtins;
+
+device(X, Type, Status) | eq(Status, "online") \ device(X, Type, Status) ==>, !log(stringConcat("Device online: ", X));
+reading(X, Metric, Value), threshold(Metric, Th) | gt(Value, Th) \ reading(X, Metric, Value), threshold(Metric, Th) ==>, alert(X, Metric, "high");
+alert(X, Metric, Level) | eq(Level, "critical") \ alert(X, Metric, Level) ==>, !log(stringConcat("Critical alert: ", Metric));
+config(X, Parameter, Value) \ config(X, Parameter, Value) ==>, config(X, Parameter, Value);
+device(X, Type, Status), reading(X, Metric, Value) \ device(X, Type, Status), reading(X, Metric, Value) ==>, !log(stringConcat("Reading from ", X));
+reading(X, Metric, Value), is_online(X) \ reading(X, Metric, Value), is_online(X) ==>, !log("Online reading");
+device(X, Type, Status) | eq(Status, "offline") \ device(X, Type, Status) ==>, alert(X, "connection", "down");
+config(X, Parameter, Value), calibrate(Parameter) \ config(X, Parameter, Value), calibrate(Parameter) ==>, !log(stringConcat("Calibrated: ", Parameter));
+alert(X, Metric, "high") \ alert(X, Metric, "high") ==>, alert(X, Metric, "medium");
+device(X, Type, Status) \ device(X, Type, Status) ==>, device(X, Type, Status);
+reading(X, Metric, Value), is_critical(Value) \ reading(X, Metric, Value), is_critical(Value) ==>, !log("Critical reading");
+config(X, Parameter, Value), measure(Value) \ config(X, Parameter, Value), measure(Value) ==>, !log("Measure calibrated");
+alert(X, Metric, Level), device(X, Type, Status) \ alert(X, Metric, Level), device(X, Type, Status) ==>, !log("Device+alert");
+reading(X, Metric, Value) \ reading(X, Metric, Value) ==>, reading(X, Metric, Value);
+device(X, Type, Status), threshold(Type, Th) \ device(X, Type, Status), threshold(Type, Th) ==>, !log("Threshold check");
+config(X, Parameter, Value) | lt(Value, 0) \ config(X, Parameter, Value) ==>, true;
+alert(X, Metric, Level) \ alert(X, Metric, Level) ==>, alert(X, Metric, "resolved");
+device(X, Type, Status), is_online(X), alert(X, Metric, Level) \ device(X, Type, Status), is_online(X), alert(X, Metric, Level) ==>, !log("Online critical alert");
+reading(X, Metric, Value), config(X, Parameter, Value) \ reading(X, Metric, Value), config(X, Parameter, Value) ==>, !log("Reading config sync");
+config(X, Parameter, Value), device(X, Type, Status) \ config(X, Parameter, Value), device(X, Type, Status) ==>, !log("Config applied");

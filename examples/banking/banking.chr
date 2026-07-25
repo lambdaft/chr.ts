@@ -1,0 +1,25 @@
+constraints account/3, transaction/3, alert/3, fee/2, loan/3, customer/2;
+functions balance/2, overdrawn/1, compound/3, penalty/2, eligible/2;
+actions log/1;
+import host builtins;
+
+account(X, Owner, Bal) \ account(X, Owner, Bal) <=> account(X, Owner, Bal);
+account(X, Owner, Bal) | overdrawn(Bal) ==> fee(X, "overdraft");
+transaction(X, T, "deposit") \ account(X, Owner, Bal) ==>, account(X, Owner, add(Bal, 100));
+transaction(X, T, "withdraw") \ account(X, Owner, Bal) ==>, account(X, Owner, sub(Bal, 50));
+fee(X, Reason) \ fee(X, Reason) <=> fee(X, "waived"), !log(stringConcat("Fee waived for ", X));
+loan(X, Cust, Amt) \ loan(X, Cust, Amt) ==>, loan(X, Cust, add(Amt, 1));
+account(X, Owner, Bal), overdrawn(Bal) \ account(X, Owner, Bal) ==> alert(X, "low balance");
+alert(X, Msg) \ alert(X, Msg) ==>, !log(stringConcat("Alert: ", Msg));
+customer(X, VIP) \ customer(X, VIP) ==> account(X, VIP, 100000);
+transaction(X, T, "deposit") \ transaction(X, T, "deposit") ==>, transaction(X, T, "completed");
+loan(X, Cust, Amt) \ loan(X, Cust, Amt) <=> loan(X, Cust, 0);
+account(X, O, Bal) \ account(X, O, Bal) ==>, account(X, O, Bal);
+fee(X, "overdraft") \ fee(X, "overdraft") ==>, fee(X, 0);
+alert(X, M), transaction(X, T, "large") \ alert(X, M) ==>, !log("Large transaction alert");
+customer(X, standard) \ customer(X, standard) ==>, customer(X, "normal");
+account(X, O, Bal) | gte(Bal, 1000) ==>, account(X, O, Bal), !log("High balance account");
+loan(X, C, A) | lt(A, 500) \ loan(X, C, A) ==>, loan(X, C, 500);
+transaction(X, T, "transfer") \ transaction(X, T, "transfer") ==>, transaction(X, T, "done");
+alert(X, "low") \ alert(X, "low") ==>, alert(X, "info");
+customer(X, Name) \ customer(X, Name) ==>, customer(X, Name);

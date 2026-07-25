@@ -1,6 +1,6 @@
 # CHR.ts
 
-`CHR.ts` is a fresh TypeScript-first CHR project intended as a robust successor to the original CHR.js prototype.
+`CHR.ts` is a TypeScript-first CHR (Constraint Handling Rules) engine designed as a robust successor to the original CHR.js prototype.
 
 The design keeps the spirit of CHR intact:
 
@@ -12,20 +12,32 @@ The design keeps the spirit of CHR intact:
 
 It does **not** carry forward the most fragile parts of the original CHR.js implementation, especially runtime `eval`, ambient scope injection, and split JIT/AOT semantics.
 
-## Project Status
+## Features at a Glance
 
-This project is currently in bootstrap form:
+- Three standard rule forms: propagation (`==>`), simplification (`<=>`), simpagation (`\ <=>`)
+- Opt-in logical variable unification via the `unify` keyword
+- Explicit, typed TypeScript host interop (`defineHostModule`, `registerHost`, `import host`)
+- 22 built-in host functions (comparisons, arithmetic, strings, type checks, `allDifferent`, `in`, `lookup`, `lookupOne`)
+- Constraint query functions (`lookup`, `lookupOne`) in guards
+- In-place constraint update (`<=`) and let bindings in rule bodies
+- Multi-head join, repeated-variable matching, anonymous `_` wildcard
+- Propagation history with order-independent hashing (loop prevention)
+- Rule priority (higher fires first), rule-fire tracing with timing
+- Engine state machine (`empty → ready → running → error`)
+- Typed constraint API via `withConstraints<T>()`
+- Test DSL (`expect(name, args).exists() / .missing() / .count(n)`)
+- Validation (dry-run), source-span error diagnostics, error cause chaining
+- Engine snapshots, convenience loader (`createEngine`), file loader (`load`)
+- No runtime dependencies; uses Node.js built-in `node:test` runner
 
-- a fresh specification is documented in [docs/CHR_TS_SPEC.md](docs/CHR_TS_SPEC.md),
-- a typed AST and runtime core are in place,
-- a safe parser for a practical CHR subset is implemented,
-- the engine executes propagation, simplification, and simpagation rules,
-- host-language guards and actions are explicit through registered functions and actions,
-- optional constraint declarations and rule-fire tracing are supported,
-- built-in host functions for common predicates (comparisons, math, strings, type checks),
-- convenience loader for one-shot engine setup,
-- multi-head join and repeated-variable matching supported,
-- **logical variable unification** via the `unify` keyword for transitive rules and shared variables across heads.
+## Quick Start
+
+```bash
+npm install
+npm run build
+npm test
+npm run typecheck
+```
 
 ## Logical Variable Unification
 
@@ -38,15 +50,6 @@ unify path(X, Y) \ path(Y, Z) ==> path(X, Z);
 ```
 
 With unification, asserting `path(a, b)` and `path(b, c)` derives `path(a, c)` because the variable `Y` is shared and unified across both heads. Under strict (default) matching, this rule only derives a new path when the middle argument of the second constraint happens to match the already-bound `Y` exactly.
-
-### Unification vs Strict Matching
-
-| Pattern | Strict (default) | `unify` |
-|---|---|---|
-| `path(X, Y) \ path(Y, Z)` with `path(a, b), path(b, c)` | ✅ derives `path(a, c)` (Y=`b` matches) | ✅ derives `path(a, c)` |
-| Same rule with `path(a, b), path(c, d)` | ❌ no match (`Y=b` !== `c`) | ❌ no match (Y cannot unify `b` with `c`) |
-| Variables in asserted constraints | ❌ unsupported | ✅ supported |
-| Cross-head variable sharing | ❌ fails on conflict | ✅ propagates substitution |
 
 ### When to Use `unify`
 
@@ -113,6 +116,8 @@ engine.addRules(source)
 For a more typed authoring style, use `defineHostModule(...)`:
 
 ```ts
+import { defineHostModule } from 'chr-ts'
+
 const host = defineHostModule({
   functions: {
     positive: (_ctx, value) => Number(value) > 0,
@@ -156,9 +161,14 @@ Available builtins:
 | `mod` | 2 | Modulo (throws on zero divisor) |
 | `min`, `max` | 2 | Numeric min/max |
 | `abs` | 1 | Absolute value |
+| `not` | 1 | Boolean negation |
 | `isNumber`, `isString`, `isBoolean`, `isNull` | 1 | Type checks |
 | `stringLength` | 1 | String length |
 | `stringConcat` | 2 | String concatenation |
+| `allDifferent` | N | Variadic; all values distinct. Also accepts single array argument |
+| `in` | 2 | Array membership check |
+| `lookup` | 1 | Query store by name |
+| `lookupOne` | 2 | Query store by name + arg index |
 
 Use `BuiltinsModule` directly for manual registration:
 
@@ -203,6 +213,67 @@ engine.registerHostModule('mymath', mathModule)
 
 When `strictHostDeclarations` is enabled, imported modules satisfy the declaration requirement automatically — no explicit `functions name/arity;` needed for module-provided functions.
 
+## Constraint Query Functions
+
+Two builtin functions allow reading constraint data from the store at runtime without consuming the constraint:
+
+```chr
+research_in_progress @ research(F, P) ==> lookup('technology') | ...
+```
+
+```typescript
+// Returns: [['agriculture'], ['mining'], ...]
+```
+
+```chr
+check_tech @ command('check', _, _) ==> lt(lookupOne('technology', 0), ...) | ...;
+```
+
+These enable non-destructive reads — the constraint remains in the store after the query.
+
+## Typed Engine API
+
+The `withConstraints<T>()` method returns a type-safe wrapper:
+
+```typescript
+const engine = new CHREngine()
+const typed = engine.withConstraints<{
+  gold: [number]
+  population: [number]
+  has_building: [string, number]
+}>()
+
+await typed.assert('gold', [100])
+await typed.assert('has_building', ['village', 1])
+```
+
+Incorrect argument types or arities are caught at compile time.
+
+## Test DSL
+
+The `expect()` method provides a fluent assertion API for tests:
+
+```typescript
+engine.expect('fib', [5, 5]).exists()
+engine.expect('fib', [5, 6]).missing()
+engine.expect('fib', [5, 5]).count(1)
+```
+
+Designed for use with Node's built-in `node:test` framework:
+
+```typescript
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+test('fibonacci', async () => {
+  const engine = new CHREngine()
+  engine.registerBuiltins()
+  engine.addRules('fib @ fib(N, A), fib(N, B) ==> ...')
+  await engine.assert('fib', [5, 5])
+  assert.ok(engine.expect('fib', [5, 5]).exists())
+})
+```
+
 ## Convenience Loader
 
 The `createEngine()` helper sets up an engine with source, host module, and builtins in one call:
@@ -229,6 +300,21 @@ npm test
 npm run typecheck
 ```
 
+## Project Status
+
+This project is currently in bootstrap form with:
+
+- a fresh specification documented in [docs/CHR_TS_SPEC.md](docs/CHR_TS_SPEC.md),
+- a typed AST and runtime core,
+- a safe parser for a practical CHR subset,
+- engine execution of propagation, simplification, and simpagation rules,
+- explicit host-language guards and actions,
+- optional constraint declarations and rule-fire tracing,
+- 22 built-in host functions,
+- convenience loader for one-shot engine setup,
+- multi-head join and repeated-variable matching,
+- **logical variable unification** via the `unify` keyword.
+
 ## Initial Design Goals
 
 1. Match CHR semantics closely enough to validate rules against established CHR systems.
@@ -252,9 +338,20 @@ src/
     loader.ts
     parser.ts
     store.ts
+    unification.ts
+    substitution.ts
   index.ts
 docs/
   CHR_TS_SPEC.md
+  FEATURES.md
+  TUTORIAL.md
+  COMPARISON.md
 examples/
   interop/
+    approval.chr
+    approval.ts
+test/
+  *.test.mjs
+  fixtures/
+  realm-of-rules/
 ```

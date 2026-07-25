@@ -1,0 +1,25 @@
+constraints product/5, order/3, shipment/3, supplier/2;
+functions stock_level/1, reorder/2, is_urgent/1, ship_cost/2, priority/1;
+actions log/1;
+import host builtins;
+
+product(X, Name, Cat, Qty, Min) | lt(Qty, Min) \ product(X, Name, Cat, Qty, Min) ==>, order(X, Name, "reorder");
+shipment(X, Carrier, Status) | eq(Status, "pending") \ shipment(X, Carrier, Status) ==>, shipment(X, Carrier, "shipped");
+order(X, Item, "reorder") \ order(X, Item, "reorder") ==>, shipment(X, "standard", "pending"), !log("Reorder placed");
+product(X, Name, Cat, Qty, Min), reorder(Qty, Min) \ product(X, Name, Cat, Qty, Min), reorder(Qty, Min) ==>, !log(stringConcat("Reorder needed for ", Name));
+supplier(X, LeadTime) \ supplier(X, LeadTime) ==>, supplier(X, LeadTime);
+shipment(X, Carrier, "shipped") \ shipment(X, Carrier, "shipped") ==>, !log(stringConcat("Shipped via ", Carrier));
+order(X, Item, "urgent") \ order(X, Item, "urgent") ==>, shipment(X, "express", "pending");
+product(X, Name, Cat, Qty, Min) | gt(Qty, 100) \ product(X, Name, Cat, Qty, Min) ==>, product(X, Name, Cat, sub(Qty, 10), Min);
+shipment(X, C, Status) | is_urgent(Status) \ shipment(X, C, Status) ==>, !log("Urgent shipment");
+supplier(X, LT) | lt(LT, 3) \ supplier(X, LT) ==>, supplier(X, "fast");
+order(X, Item, Status) \ order(X, Item, Status) ==>, order(X, Item, "pending");
+product(X, N, C, Q, M) | stock_level(Q) \ product(X, N, C, Q, M) ==>, !log("Stock level check");
+shipment(X, C, S) \ shipment(X, C, S) ==>, shipment(X, C, "delivered");
+supplier(X, Name) \ supplier(X, Name) ==>, supplier(X, Name);
+order(X, Item, "reorder"), supplier(X, LT) \ order(X, Item, "reorder"), supplier(X, LT) ==>, shipment(X, "auto", "pending");
+product(X, N, C, Q, M) | eq(Q, 0) \ product(X, N, C, Q, M) ==>, !log(stringConcat("Out of stock: ", N));
+shipment(X, C, S), ship_cost(C, Cost) \ shipment(X, C, S), ship_cost(C, Cost) ==>, shipment(X, C, S);
+order(X, Item, Status) | eq(Status, "pending") \ order(X, Item, Status) ==>, order(X, Item, "processing");
+product(X, N, C, Q, M), priority(N) \ product(X, N, C, Q, M), priority(N) ==>, order(X, N, "priority");
+product(X, Name, Cat, Qty, Min) \ product(X, Name, Cat, Qty, Min) ==>, product(X, Name, Cat, Qty, Min);

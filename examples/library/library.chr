@@ -1,0 +1,25 @@
+constraints book/3, member/2, loan/3, hold/3, fine/2;
+functions calc_fine/2, is_active/1, days_overdue/2, overdue/1, can_borrow/2, new_book/1, today/0;
+actions log/1;
+import host builtins;
+
+book(X, Title, available) ==> new_book(X, Title, "available"), !log(stringConcat("Registered book: ", Title));
+book(X, Title, available) \ book(X, Title, available) <=> book(X, Title, "checked-out");
+member(X, active) \ member(X, active), hold(X, B, D) ==> loan(X, B, D);
+loan(X, B, D) \ loan(X, B, D) ==>, !log(stringConcat("Returned loan for book ", B));
+loan(X, B, D), fine(B, Amt) ==> fine(B, add(Amt, 1));
+book(X, Title, available), member(X, active) ==> hold(X, Title, today()), !log("Held available book");
+fine(B, 0) \ loan(X, B, D) ==>, fine(B, 0), !log("Book returned, no fine");
+hold(X, B, D), loan(X, B, D) \ hold(X, B, D) <=> loan(X, B, D);
+member(X, suspended) \ member(X, suspended) <=> member(X, active);
+fine(B, Amt) \ fine(B, Amt) <=> fine(B, add(Amt, 1));
+loan(X, B, D), days_overdue(D, N) \ loan(X, B, D) ==>, loan(X, B, D);
+book(X, Title, checked-out) \ book(X, Title, checked-out) <=> book(X, Title, available);
+member(X, M) \ member(X, M) ==> member(X, "active");
+fine(B, Amt) \ fine(B, Amt) ==>, fine(B, 0), !log("Fine cleared");
+loan(X, B, D) \ loan(X, B, D) <=> loan(X, B, today());
+book(X, T, S), member(X, M) \ book(X, T, S), member(X, M) ==>, hold(X, T, today());
+hold(X, B, D) \ hold(X, B, D), loan(X, B, D) ==>, !log("Hold converted to loan");
+fine(B, Amt) \ fine(B, Amt) ==>, fine(B, sub(Amt, 1));
+loan(X, B, D) \ loan(X, B, D) ==>, loan(X, B, D), !log("Loan renewed");
+book(X, "none", S) \ book(X, "none", S) <=> true;

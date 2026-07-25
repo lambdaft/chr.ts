@@ -1,0 +1,25 @@
+constraints event/5, reminder/3, conflict/3, meeting/4;
+functions is_busy/1, overlap/2, duration/2, valid/1, notify/1;
+actions log/1;
+import host builtins;
+
+event(X, Title, Start, End, Attendees) | gte(End, Start) \ event(X, Title, Start, End, Attendees) ==>, event(X, Title, Start, End, Attendees);
+event(X, Title, Start, End, Att), reminder(X, RTime, "email") \ event(X, Title, Start, End, Att) ==>, reminder(X, Start, "sent");
+meeting(X, Attendees, Start, End), is_busy(Attendees) \ meeting(X, Attendees, Start, End) ==>, !log("Busy attendees");
+reminder(X, RTime, "email") \ reminder(X, RTime, "email") ==>, reminder(X, RTime, "delivered");
+event(X, Title, Start, End, Att), conflict(X) \ event(X, Title, Start, End, Att) ==>, !log("Scheduling conflict");
+meeting(X, A, S, E) | lt(E, add(S, 1)) \ meeting(X, A, S, E) ==>, !log("Short meeting");
+event(X, Title, S, E, Att) \ event(X, Title, S, E, Att) ==>, event(X, Title, S, E, Att);
+reminder(X, R, T) \ reminder(X, R, T) ==>, reminder(X, R, "ack");
+meeting(X, A, S, E), overlap(A, B) \ meeting(X, A, S, E) ==>, !log("Overlapping meetings");
+event(X, T, S, E, A) | valid(S) \ event(X, T, S, E, A) ==>, !log("Valid event");
+conflict(X), event(X, T, S, E, A) \ conflict(X), event(X, T, S, E, A) ==>, event(X, T, S, E, A);
+meeting(X, A, S, E), duration(S, E, D) | gte(D, 2) \ meeting(X, A, S, E) ==>, !log("Long meeting");
+reminder(X, R, T), notify(R) \ reminder(X, R, T), notify(R) ==>, !log("Notification sent");
+event(X, T, S, E, A) | lt(E, S) \ event(X, T, S, E, A) ==>, true;
+meeting(X, A, S, E) \ meeting(X, A, S, E) ==>, meeting(X, A, S, E);
+reminder(X, R, T) | eq(T, "sms") \ reminder(X, R, T) ==>, !log("SMS reminder");
+event(X, T, S, E, A), is_busy(A) \ event(X, T, S, E, A), is_busy(A) ==>, !log("Attendees busy");
+conflict(X) \ conflict(X, true) <=> conflict(X, false);
+meeting(X, A, S, E) | eq(S, E) \ meeting(X, A, S, E) ==>, true;
+event(X, T, S, E, A), reminder(X, S, "email") \ event(X, T, S, E, A), reminder(X, S, "email") ==>, !log("Event+reminder linked");

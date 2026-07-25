@@ -1,5 +1,4 @@
 import {
-  BinaryExpression,
   BodyAction,
   BodyConstraint,
   BodyConstraintUpdate,
@@ -22,6 +21,7 @@ import { ConstraintStore } from './store.js'
 import { Substitution } from './substitution.js'
 import { materializeSubstitution, unifyTerm } from './unification.js'
 import { readFileSync } from 'node:fs'
+import { evaluateExpression as evalExpression } from './engine/eval.js'
 
 export interface EngineSnapshot {
   rules: Array<{ name: string, kind: RuleNode['kind'], priority?: number }>
@@ -992,104 +992,27 @@ export class CHREngine {
     }
   }
 
-  private async evaluateExpression (
+
+  private evaluateExpression = async (
     expr: Expression,
     rule: RuleNode,
     matched: ConstraintRecord[],
     bindings: Record<string, unknown>
-  ): Promise<unknown> {
-    if (expr.type === 'literal') {
-      return expr.value
-    }
+  ): Promise<unknown> => {
+    return evalExpression(
+      {
+        functions: this.functions as Map<string, any>,
+        hostFunctionTimeout: this.hostFunctionTimeout,
+        store: this.store,
+        history: this.history,
 
-    if (expr.type === 'array') {
-      const elements: unknown[] = []
-      for (const element of expr.elements) {
-        elements.push(await this.evaluateExpression(element, rule, matched, bindings))
-      }
-      return elements
-    }
-
-    if (expr.type === 'variable') {
-      if (!Object.hasOwn(bindings, expr.name)) {
-        throw new CHRExecutionError(`Unbound variable ${expr.name}`, rule.span)
-      }
-      return bindings[expr.name]
-    }
-
-    if (expr.type === 'unary') {
-      const operand = await this.evaluateExpression(expr.operand, rule, matched, bindings)
-      if (expr.operator === '!') {
-        return !operand
-      }
-      if (expr.operator === '-') {
-        return -(operand as number)
-      }
-      throw new CHRExecutionError(`Unknown unary operator ${expr.operator}`, rule.span)
-    }
-
-    if (expr.type === 'binary') {
-      if (expr.operator === 'in') {
-        const left = await this.evaluateExpression(expr.left, rule, matched, bindings)
-        const right = await this.evaluateExpression(expr.right, rule, matched, bindings)
-        if (!Array.isArray(right)) {
-          throw new CHRExecutionError('Right operand of "in" must be an array.', rule.span)
-        }
-        return right.includes(left)
-      }
-
-      const left = await this.evaluateExpression(expr.left, rule, matched, bindings)
-      const right = await this.evaluateExpression(expr.right, rule, matched, bindings)
-      return evaluateBinary(expr.operator, left, right)
-    }
-
-    const fn = this.functions.get(expr.callee)
-    if (!fn) {
-      throw new CHRExecutionError(
-        `Unknown host function: ${expr.callee}${this.suggestSimilar(expr.callee, this.functions)}`,
-        rule.span
-      )
-    }
-
-    const args: unknown[] = []
-    for (const arg of expr.args) {
-      args.push(await this.evaluateExpression(arg, rule, matched, bindings))
-    }
-
-    try {
-      return await this.withTimeout(
-        fn({
-          engine: this,
-          store: this.store,
-          history: this.history,
-          rule,
-          matched,
-          bindings
-        }, ...args),
-        expr.callee,
-        rule
-      )
-    } catch (error) {
-      throw new CHRExecutionError(
-        `Host function ${expr.callee} threw in rule ${rule.name ?? 'anonymous'}: ${(error as Error).message}`,
-        rule.span,
-        error as Error
-      )
-    }
-  }
-
-  private async withTimeout<T> (promise: T | Promise<T>, name: string, rule: RuleNode): Promise<T> {
-    if (this.hostFunctionTimeout === undefined || typeof promise !== 'object' || promise === null || !('then' in (promise as Promise<T>))) {
-      return promise as T
-    }
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Host function ${name} timed out after ${this.hostFunctionTimeout}ms in rule ${rule.name ?? 'anonymous'}`))
-      }, this.hostFunctionTimeout)
-    })
-
-    return Promise.race([promise as Promise<T>, timeoutPromise])
+        suggestSimilar: (...args: [string, Map<string, any>]) => this.suggestSimilar(...args)
+      },
+      expr,
+      rule,
+      matched,
+      bindings
+    )
   }
 
   private validateRuleConstraints (rule: RuleNode): void {
@@ -1226,35 +1149,3 @@ export class CHREngine {
   }
 }
 
-function evaluateBinary (operator: BinaryExpression['operator'], left: unknown, right: unknown): unknown {
-  switch (operator) {
-    case '||': return Boolean(left) || Boolean(right)
-    case '&&': return Boolean(left) && Boolean(right)
-    case '===': return left === right
-    case '!==': return left !== right
-    case '<': return compareNumbers(left, right, (a, b) => a < b)
-    case '<=': return compareNumbers(left, right, (a, b) => a <= b)
-    case '>': return compareNumbers(left, right, (a, b) => a > b)
-    case '>=': return compareNumbers(left, right, (a, b) => a >= b)
-    case '+': return numeric(left) + numeric(right)
-    case '-': return numeric(left) - numeric(right)
-    case '*': return numeric(left) * numeric(right)
-    case '/': return numeric(left) / numeric(right)
-    case 'in':
-      if (!Array.isArray(right)) throw new Error('Right operand of "in" must be an array.')
-      return (right as unknown[]).includes(left)
-    default:
-      throw new CHRExecutionError(`Unsupported binary operator: ${String(operator)}`)
-  }
-}
-
-function compareNumbers (left: unknown, right: unknown, predicate: (left: number, right: number) => boolean): boolean {
-  return predicate(numeric(left), numeric(right))
-}
-
-function numeric (value: unknown): number {
-  if (typeof value !== 'number') {
-    throw new CHRExecutionError('Numeric operation requires number operands.')
-  }
-  return value
-}

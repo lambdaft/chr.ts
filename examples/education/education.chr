@@ -1,0 +1,25 @@
+constraints student/3, course/4, enrollment/3, grade/3, prereq/2;
+functions gpa/2, passes/2, eligible/2, satisfied/2, weighted/2;
+actions log/1;
+import host builtins;
+
+student(X, Name, Major) \ student(X, Name, Major) ==>, student(X, Name, Major);
+course(X, Code, Title, Credits) \ course(X, Code, Title, Credits) ==>, course(X, Code, Title, Credits);
+enrollment(X, Course, Status) | eq(Status, "enrolled") \ enrollment(X, Course, Status) ==>, grade(X, Course, "A");
+grade(X, C, G), gpa([G], GPA) \ grade(X, C, G) ==>, grade(X, C, G);
+prereq(A, B), enrollment(X, A, "enrolled") \ prereq(A, B), enrollment(X, A, "enrolled") ==>, enrollment(X, B, "eligible");
+enrollment(X, C, "completed") \ enrollment(X, C, "completed") ==>, grade(X, C, "passed");
+student(X, Name, Major), grade(X, C, "F") \ student(X, Name, Major), grade(X, C, "F") ==>, !log(stringConcat("Failed: ", Name) + stringConcat(" in ", C));
+course(X, C, T, Cr) | lt(Cr, 1) \ course(X, C, T, Cr) ==>, true;
+enrollment(X, C, "dropped") \ enrollment(X, C, "dropped") <=> enrollment(X, C, "active");
+grade(X, C, G) \ grade(X, C, G) ==>, grade(X, C, "incomplete");
+student(X, N, M) | eq(M, "CS") \ student(X, N, M) ==>, !log(stringConcat("CS student: ", N));
+course(X, C, T, Cr), prereq(C, P) \ course(X, C, T, Cr), prereq(C, P) ==>, !log(stringConcat("Prereq for ", C));
+enrollment(X, C, S) \ enrollment(X, C, S) ==>, enrollment(X, C, "waitlisted");
+grade(X, C, G), eligible(C, X) \ grade(X, C, G), eligible(C, X) ==>, grade(X, C, "A+");
+student(X, N, M) \ student(X, N, M) ==>, student(X, N, M);
+course(X, C, T, Cr) | gt(Cr, 3) \ course(X, C, T, Cr) ==>, !log(stringConcat("Advanced course: ", C));
+enrollment(X, C, S), satisfied(C, X) \ enrollment(X, C, S), satisfied(C, X) ==>, enrollment(X, C, "passed");
+grade(X, C, G) | gte(G, 90) \ grade(X, C, G) ==>, grade(X, C, "A");
+prereq(A, B) \ prereq(A, B) ==>, prereq(A, B);
+course(X, C, T, Cr) \ course(X, C, T, Cr) ==>, course(X, C, T, Cr);

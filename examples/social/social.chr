@@ -1,0 +1,25 @@
+constraints user/4, post/4, follow/3, notification/3;
+functions popularity/1, is_following/2, unread/1, engagement/1, hashtag/1;
+actions log/1;
+import host builtins;
+
+user(X, Name, Handle, Followers) \ user(X, Name, Handle, Followers) ==>, user(X, Name, Handle, Followers);
+post(X, Author, Content, Likes) | gte(Likes, 100) \ post(X, Author, Content, Likes) ==>, !log("Viral post");
+follow(X, Target, Since) | eq(Target, "influencer") \ follow(X, Target, Since) ==>, !log("Following influencer");
+notification(X, Type, Msg) | eq(Type, "like") \ notification(X, Type, Msg) ==>, !log("New like");
+user(X, Name, Handle, Followers), popularity(Followers) \ user(X, Name, Handle, Followers), popularity(Followers) ==>, !log(stringConcat("Popular user: ", Name));
+post(X, Author, Content, Likes) \ post(X, Author, Content, Likes) ==>, post(X, Author, Content, add(Likes, 1));
+follow(X, Target, Since), is_following(Target, X) \ follow(X, Target, Since), is_following(Target, X) ==>, !log("Mutual follow");
+notification(X, Type, Msg), unread(Msg) \ notification(X, Type, Msg), unread(Msg) ==>, !log("Unread notification");
+user(X, Name, Handle, Followers) \ user(X, Name, Handle, Followers) ==>, user(X, Name, Handle, Followers);
+post(X, Author, Content, Likes), engagement(Likes) \ post(X, Author, Content, Likes), engagement(Likes) ==>, !log("Engaging post");
+follow(X, Target, Since) \ follow(X, Target, Since) ==>, follow(X, Target, Since);
+notification(X, Type, Msg), hashtag(Msg) \ notification(X, Type, Msg), hashtag(Msg) ==>, !log("Hashtag mention");
+user(X, Name, Handle, Followers) | lt(Followers, 10) \ user(X, Name, Handle, Followers) ==>, !log("New user");
+post(X, Author, Content, Likes), hashtag(Content) \ post(X, Author, Content, Likes), hashtag(Content) ==>, !log("Trending topic");
+notification(X, Type, Msg) | eq(Type, "follow") \ notification(X, Type, Msg) ==>, !log("New follower");
+follow(X, Target, Since), user(X, Name, H, F) \ follow(X, Target, Since), user(X, Name, H, F) ==>, !log(X + stringConcat(" follows ", Target));
+post(X, Author, Content, Likes) \ post(X, Author, Content, Likes) ==>, post(X, Author, Content, Likes);
+user(X, Name, Handle, Followers) | popularity(Followers), gt(Followers, 10000) \ user(X, Name, Handle, Followers) ==>, !log(stringConcat("Influencer: ", Name));
+follow(X, Target, Since), notification(Target, "follow", "new") \ follow(X, Target, Since), notification(Target, "follow", "new") ==>, !log("Follow notification");
+notification(X, Type, Msg) \ notification(X, Type, Msg) ==>, notification(X, Type, "read");

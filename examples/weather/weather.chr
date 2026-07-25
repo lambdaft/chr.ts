@@ -1,0 +1,25 @@
+constraints station/5, alert/3, advisory/3, forecast/4;
+functions temp_f/1, is_severe/1, humidity/1, wind_speed/1, uv_index/1;
+actions log/1;
+import host builtins;
+
+station(X, Name, Lat, Lon, Elev) \ station(X, Name, Lat, Lon, Elev) ==>, station(X, Name, Lat, Lon, Elev);
+alert(X, Type, Level) | eq(Level, "severe") \ alert(X, Type, Level) ==>, !log(stringConcat("Severe alert: ", Type));
+advisory(X, Type, Message) | eq(Type, "heat") \ advisory(X, Type, Message) ==>, !log("Heat advisory");
+forecast(X, Date, High, Low) | gt(High, 100) \ forecast(X, Date, High, Low) ==>, alert(X, "extreme heat", "warning");
+station(X, Name, Lat, Lon, Elev), temp_f(Temp) | gt(Temp, 105) \ station(X, Name, Lat, Lon, Elev), temp_f(Temp) ==>, advisory(X, "extreme heat", "stay hydrated");
+alert(X, Type, Level), is_severe(Level) \ alert(X, Type, Level), is_severe(Level) ==>, !log("Severe weather alert");
+forecast(X, Date, High, Low), humidity(H) | gt(H, 90) \ forecast(X, Date, High, Low), humidity(H) ==>, advisory(X, "humidity", "high");
+advisory(X, Type, Message) \ advisory(X, Type, Message) ==>, advisory(X, Type, "active");
+station(X, Name, Lat, Lon, Elev), wind_speed(WS) | gt(WS, 60) \ station(X, Name, Lat, Lon, Elev), wind_speed(WS) ==>, alert(X, "high wind", "warning");
+forecast(X, Date, High, Low), uv_index(UVI) | gt(UVI, 8) \ forecast(X, Date, High, Low), uv_index(UVI) ==>, advisory(X, "uv", "use sunscreen");
+alert(X, Type, Level) \ alert(X, Type, Level) ==>, alert(X, Type, "resolved");
+forecast(X, Date, High, Low) \ forecast(X, Date, High, Low) ==>, forecast(X, Date, High, Low);
+station(X, Name, Lat, Lon, Elev), alert(X, Type, Level) \ station(X, Name, Lat, Lon, Elev), alert(X, Type, Level) ==>, !log("Station alert");
+advisory(X, Type, Message), forecast(X, Date, High, Low) \ advisory(X, Type, Message), forecast(X, Date, High, Low) ==>, !log("Advisory+forecast");
+forecast(X, Date, High, Low) | lt(Low, 32) \ forecast(X, Date, High, Low) ==>, alert(X, "freeze", "warning");
+station(X, Name, Lat, Lon, Elev) \ station(X, Name, Lat, Lon, Elev) ==>, station(X, Name, Lat, Lon, Elev);
+alert(X, Type, Level) | eq(Type, "tornado") \ alert(X, Type, Level) ==>, !log("TORNADO WARNING");
+advisory(X, Type, Message) \ advisory(X, Type, Message) ==>, advisory(X, Type, Message);
+forecast(X, Date, High, Low), temp_f(T) | lt(T, 0) \ forecast(X, Date, High, Low), temp_f(T) ==>, advisory(X, "freeze", "pipe burst risk");
+station(X, Name, Lat, Lon, Elev), forecast(X, Date, High, Low) \ station(X, Name, Lat, Lon, Elev), forecast(X, Date, High, Low) ==>, !log("Forecast published");

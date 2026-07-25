@@ -1,0 +1,25 @@
+constraints song/4, playlist/3, rating/3, queue/3;
+functions is_favorite/1, duration/1, genre/1, is_up_next/1, repeat/1;
+actions log/1;
+import host builtins;
+
+song(X, Title, Artist, Duration) \ song(X, Title, Artist, Duration) ==>, song(X, Title, Artist, Duration);
+playlist(X, Name, Tracks) \ playlist(X, Name, Tracks) ==>, playlist(X, Name, Tracks);
+rating(X, Song, Score) | gt(Score, 4) \ rating(X, Song, Score) ==>, !log("Top rated song");
+queue(X, Item, Position) | eq(Position, 1) \ queue(X, Item, Position) ==>, !log(stringConcat("Now playing: ", Item));
+song(X, Title, Artist, Duration), is_favorite(Title) \ song(X, Title, Artist, Duration), is_favorite(Title) ==>, !log(stringConcat("Favorite song: ", Title));
+playlist(X, Name, Tracks) | gt(Tracks, 50) \ playlist(X, Name, Tracks) ==>, !log("Large playlist");
+queue(X, Item, Position) | eq(Position, "next") \ queue(X, Item, Position) ==>, queue(X, Item, 1);
+rating(X, Song, Score), genre(Song, G) \ rating(X, Song, Score), genre(Song, G) ==>, !log(stringConcat("Genre rating: ", G));
+song(X, Title, Artist, Duration), repeat(Title) \ song(X, Title, Artist, Duration), repeat(Title) ==>, queue(X, Title, "repeat");
+playlist(X, Name, Tracks) \ playlist(X, Name, Tracks) ==>, playlist(X, Name, Tracks);
+queue(X, Item, Position), is_up_next(Position) \ queue(X, Item, Position), is_up_next(Position) ==>, !log("Up next");
+rating(X, Song, Score) \ rating(X, Song, Score) ==>, rating(X, Song, add(Score, 1));
+song(X, Title, Artist, Duration), duration(Duration) | lt(Duration, 120) \ song(X, Title, Artist, Duration), duration(Duration) ==>, !log("Short song");
+queue(X, Item, Position) \ queue(X, Item, Position) ==>, queue(X, Item, add(Position, 1));
+song(X, Title, Artist, Duration), playlist(X, Name, Tracks) \ song(X, Title, Artist, Duration), playlist(X, Name, Tracks) ==>, !log(stringConcat("In playlist: ", Name));
+rating(X, Song, Score), playlist(X, Name, Tracks) \ rating(X, Song, Score), playlist(X, Name, Tracks) ==>, !log("Playlist rating");
+queue(X, Item, Position), song(X, Title, Artist, Duration) \ queue(X, Item, Position), song(X, Title, Artist, Duration) ==>, !log("Queue song");
+song(X, Title, Artist, Duration), genre(Title, G) | eq(G, "rock") \ song(X, Title, Artist, Duration), genre(Title, G) ==>, !log("Rock song");
+playlist(X, Name, Tracks), repeat(Name) \ playlist(X, Name, Tracks), repeat(Name) ==>, playlist(X, Name, "repeat");
+queue(X, Item, Position) \ queue(X, Item, Position) ==>, queue(X, Item, Position);

@@ -1,0 +1,25 @@
+constraints cart/3, product/4, order/3, user/3, discount/2;
+functions total/2, apply_disc/2, is_valid/1, in_stock/1, tax/2;
+actions log/1;
+import host builtins;
+
+product(X, Name, Price, Stock) | gte(Stock, 1) \ product(X, Name, Price, Stock) ==>, product(X, Name, Price, sub(Stock, 1));
+cart(X, User, Items) \ cart(X, User, Items) ==>, cart(X, User, Items), !log("Cart updated");
+cart(X, User, Items), discount(X, Pct) \ cart(X, User, Items) ==>, cart(X, User, apply_disc(Items, Pct));
+order(X, User, Status) \ order(X, User, Status) ==>, order(X, User, "processing"), !log("Order placed");
+user(X, Email, Tier) | eq(Tier, "gold") \ user(X, Email, Tier) ==>, discount(X, 15);
+product(X, N, P, S), lt(S, 5) \ product(X, N, P, S) ==>, !log(stringConcat("Low stock: ", N));
+cart(X, User, Items), total(Items, Amt) | gte(Amt, 100) \ cart(X, User, Items) ==>, discount(X, 10);
+order(X, U, "processing") \ order(X, U, "processing") ==>, order(X, U, "shipped");
+user(X, Email, "new") \ user(X, Email, "new") ==>, discount(X, 5);
+product(X, N, P, S) \ product(X, N, P, S) ==>, tax(P, 0.08);
+cart(X, User, Items) \ cart(X, User, Items) ==>, cart(X, User, Items);
+order(X, U, S) | eq(S, "shipped") \ order(X, U, S) ==>, !log("Order shipped");
+discount(X, P) \ discount(X, P) ==>, discount(X, 0), !log("Discount expired");
+product(X, N, P, S), lt(P, 1) \ product(X, N, P, S) ==>, !log(stringConcat("Free item: ", N));
+cart(X, User, Items) | in_stock(Items) \ cart(X, User, Items) ==>, order(X, User, "ready");
+order(X, U, S) \ order(X, U, S) ==>, order(X, U, "delivered");
+user(X, Email, Tier) \ user(X, Email, Tier) ==>, user(X, Email, "premium");
+product(X, N, P, S) | gt(S, 100) \ product(X, N, P, S) ==>, !log(stringConcat("Expensive: ", N));
+cart(X, User, Items) \ cart(X, User, Items) ==>, cart(X, User, Items);
+order(X, U, S) \ order(X, U, S) ==>, order(X, U, S);

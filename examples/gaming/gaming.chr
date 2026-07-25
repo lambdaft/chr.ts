@@ -1,0 +1,25 @@
+constraints character/5, quest/4, inventory/3, skill/3;
+functions level/1, damage/2, heal/2, has_item/2, cast/3;
+actions log/1;
+import host builtins;
+
+character(X, Name, Class, HP, MaxHP) \ character(X, Name, Class, HP, MaxHP) ==>, character(X, Name, Class, MaxHP, MaxHP);
+quest(X, Title, Rewards, Status) | eq(Status, "active") \ quest(X, Title, Rewards, Status) ==>, !log(stringConcat("Quest active: ", Title));
+inventory(X, Items), has_item(Items, "potion") \ inventory(X, Items) ==>, inventory(X, Items), !log("Has potion");
+skill(X, Name, Level) \ skill(X, Name, Level) ==>, skill(X, Name, add(Level, 1));
+character(X, Name, Class, HP, MaxHP), damage(Name, Dmg) \ character(X, Name, Class, HP, MaxHP) ==>, character(X, Name, Class, sub(HP, Dmg), MaxHP);
+quest(X, Title, Rewards, "completed") \ quest(X, Title, Rewards, "completed") ==>, !log(stringConcat("Quest completed: ", Title));
+inventory(X, Items), cast(X, "fireball", 10) \ inventory(X, Items) ==>, inventory(X, Items);
+skill(X, Name, Lv) | gt(Lv, 10) \ skill(X, Name, Lv) ==>, !log(stringConcat("Mastered: ", Name));
+character(X, Name, Class, HP, Max), heal(Name, Amount) \ character(X, Name, Class, HP, Max) ==>, character(X, Name, Class, add(HP, Amount), Max);
+quest(X, T, R, S), character(X, Name, C, HP, M) \ quest(X, T, R, S), character(X, Name, C, HP, M) ==>, !log(stringConcat("Hero ", Name) + " on quest");
+inventory(X, Items) \ inventory(X, Items) ==>, inventory(X, Items);
+skill(X, N, L) \ skill(X, N, L) ==>, skill(X, N, L);
+character(X, Name, Class, HP, Max), level(Name), gt(HP, Max) \ character(X, Name, Class, HP, Max) ==>, character(X, Name, Class, Max, Max);
+quest(X, T, R, S) | eq(S, "failed") \ quest(X, T, R, S) ==>, !log(stringConcat("Quest failed: ", T));
+inventory(X, Items), lt(count(Items), 1) \ inventory(X, Items) ==>, !log("Empty inventory");
+character(X, N, C, HP, M) | eq(HP, 0) \ character(X, N, C, HP, M) ==>, !log(stringConcat("Defeated: ", N));
+skill(X, N, L), cast(X, N, L) \ skill(X, N, L), cast(X, N, L) ==>, !log(stringConcat("Cast ", N) + stringConcat(" at level ", L));
+quest(X, T, R, S), reward(X, R) \ quest(X, T, R, S), reward(X, R) ==>, !log("Reward claimed");
+character(X, N, C, HP, M) \ character(X, N, C, HP, M) ==>, character(X, N, C, HP, M);
+inventory(X, Items), has_item(Items, "key") \ inventory(X, Items), has_item(Items, "key") ==>, !log("Key found");

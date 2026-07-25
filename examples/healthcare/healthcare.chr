@@ -1,0 +1,25 @@
+constraints patient/4, appointment/4, diagnosis/3, treatment/3, prescription/3;
+functions urgent/1, follow_up/2, duration/2, is_valid/1, refill/2;
+actions log/1;
+import host builtins;
+
+patient(X, Name, Age, Cond) \ patient(X, Name, Age, Cond) ==>, patient(X, Name, Age, "stable");
+appointment(X, Doc, Date, Time) | gte(Time, 9), lte(Time, 17) ==>, appointment(X, Doc, Date, Time);
+appointment(X, Doc, Date, Time) | lt(Time, 9) \ appointment(X, Doc, Date, Time) ==>, appointment(X, Doc, Date, 9);
+diagnosis(X, Cond, Sev) | eq(Sev, "critical") \ diagnosis(X, Cond, Sev) ==>, treatment(X, "emergency", "immediate");
+treatment(X, Name, Plan) \ treatment(X, Name, Plan) ==>, treatment(X, Name, "ongoing"), !log(stringConcat("Treatment started: ", Name));
+prescription(X, Med, Days) \ prescription(X, Med, Days) ==>, prescription(X, Med, sub(Days, 7));
+patient(X, N, A, C) | lt(A, 18) \ patient(X, N, A, C) ==>, diagnosis(X, "pediatric", "monitor");
+appointment(X, D, Dt, T) \ appointment(X, D, Dt, T) ==>, appointment(X, D, Dt, add(T, 1));
+diagnosis(X, Cond, Sev) \ diagnosis(X, Cond, Sev) ==>, diagnosis(X, Cond, "mild");
+prescription(X, Med, D) | eq(D, 0) \ prescription(X, Med, D) ==>, true;
+treatment(X, N, P) | eq(P, "immediate") \ treatment(X, N, P) ==>, !log(stringConcat("Emergency treatment for ", N));
+patient(X, N, A, C) \ patient(X, N, A, C) ==>, patient(X, N, A, "stable");
+appointment(X, D, Dt, T) \ appointment(X, D, Dt, T) ==>, appointment(X, D, Dt, 10);
+diagnosis(X, C, S) \ diagnosis(X, C, S) ==>, diagnosis(X, C, "monitor");
+prescription(X, M, D) \ prescription(X, M, D) ==>, prescription(X, M, 30);
+treatment(X, N, P), follow_up(N, true) \ treatment(X, N, P) ==>, treatment(X, N, "scheduled");
+patient(X, N, A, C), urgent(C), appointment(X, D, Dt, T) \ patient(X, N, A, C), appointment(X, D, Dt, T) ==>, treatment(X, "urgent care", "immediate");
+treatment(X, N, P) \ treatment(X, N, P) ==>, treatment(X, N, "completed");
+prescription(X, M, D), refill(M, true) \ prescription(X, M, D) ==>, prescription(X, M, add(D, 30));
+appointment(X, D, Dt, T) \ appointment(X, D, Dt, T) ==>, appointment(X, D, Dt, T);
