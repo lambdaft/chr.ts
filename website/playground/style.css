@@ -280,3 +280,9 @@ html, body {
 }
 input:checked + .slider { background-color: var(--success); }
 input:checked + .slider:before { transform: translateX(14px); }
+
+.cm-chr-propagation { color: #79c0ff; font-weight: 600; }
+.cm-chr-simplification { color: #ff7b72; font-weight: 600; }
+.cm-chr-simpagation { color: #d29922; font-weight: 600; }
+.cm-chr-action { color: #ffa657; }
+.cm-chr-declaration { color: #7ee787; }

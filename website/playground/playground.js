@@ -5,7 +5,7 @@
       lineNumbers: true,
       matchBrackets: true,
       styleActiveLine: true,
-      mode: 'javascript',
+      mode: 'chr',
       theme: 'monokai',
       indentUnit: 2,
       tabSize: 2,
@@ -73,7 +73,8 @@
       const bindings = Object.keys(t.bindings || {}).length > 0
         ? ' ' + Object.entries(t.bindings).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')
         : ''
-      row.innerHTML = `<span class="trace-idx">#${idx + 1}</span> <span class="trace-kind kind-${t.kind}">${t.kind}</span> <span class="trace-name">${escapeHtml(t.ruleName)}</span><span class="trace-bindings">${escapeHtml(bindings)}</span><span class="trace-ms">${ms}</span>`
+      const arrow = t.kind === 'propagation' ? '⇒' : t.kind === 'simplification' ? '⇔' : '\\⇔'
+      row.innerHTML = `<span class="trace-idx">#${idx + 1}</span> <span class="trace-kind kind-${t.kind}">${arrow}</span> <span class="trace-name">${escapeHtml(t.ruleName)}</span><span class="trace-bindings">${escapeHtml(bindings)}</span><span class="trace-ms">${ms}</span>`
       traceLog.appendChild(row)
     })
   }
