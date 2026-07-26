@@ -7,22 +7,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'library.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, 'library.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
-      calc_fine: (ctx, ...args) => 0,
-      is_active: (ctx, ...args) => 0,
-      days_overdue: (ctx, ...args) => 0,
-      overdue: (ctx, ...args) => 0,
-      can_borrow: (ctx, ...args) => 0,
-      new_book: (ctx, ...args) => 0,
-      today: (ctx, ...args) => 0
+      is_overdue: (ctx, ...args) => 0,
+      is_reserved: (ctx, ...args) => 0,
+      category: (ctx, ...args) => 0,
+      popularity: (ctx, ...args) => 0,
+      late_fee: (ctx, ...args) => 0
     },
     actions: {
-      log: ({ args }) => {
-        console.log('[library]', args[0] ?? '')
-      }
+      log: ({ args }) => console.log("[library]", args[0] ?? "")
     }
   })
 
@@ -31,10 +27,7 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: 'book', args: ['b1', 'The Hobbit', 'available'] },
-    { name: 'member', args: ['m1', 'active'] },
-    { name: 'book', args: ['b2', 'Dune', 'available'] },
-    { name: 'member', args: ['m2', 'active'] }
+    { name: "book", args: ['id1', 'id1', 'id1'] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))

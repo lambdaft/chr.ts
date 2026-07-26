@@ -7,20 +7,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'education.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, 'education.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
       gpa: (ctx, ...args) => 0,
-      passes: (ctx, ...args) => 0,
-      eligible: (ctx, ...args) => 0,
-      satisfied: (ctx, ...args) => 0,
-      weighted: (ctx, ...args) => 0
+      passed: (ctx, ...args) => 0,
+      is_fulltime: (ctx, ...args) => 0,
+      grade_avg: (ctx, ...args) => 0,
+      due_soon: (ctx, ...args) => 0
     },
     actions: {
-      log: ({ args }) => {
-        console.log('[education]', args[0] ?? '')
-      }
+      log: ({ args }) => console.log("[education]", args[0] ?? "")
     }
   })
 
@@ -29,10 +27,7 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: 'student', args: ['s1', 'Alice', 'CS'] },
-    { name: 'course', args: ['c1', 'CS101', 'Intro', 3] },
-    { name: 'student', args: ['s2', 'Bob', 'Math'] },
-    { name: 'enrollment', args: ['s1', 'CS101', 'enrolled'] }
+    { name: "student", args: ['id1', 'id1', 'id1'] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))

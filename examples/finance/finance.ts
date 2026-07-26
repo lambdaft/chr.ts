@@ -7,20 +7,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'finance.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, 'finance.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
       value: (ctx, ...args) => 0,
-      risk: (ctx, ...args) => 0,
-      return_rate: (ctx, ...args) => 0,
-      diversify: (ctx, ...args) => 0,
-      yield_pct: (ctx, ...args) => 0
+      is_risky: (ctx, ...args) => 0,
+      returns: (ctx, ...args) => 0,
+      liquid: (ctx, ...args) => 0,
+      appreciates: (ctx, ...args) => 0
     },
     actions: {
-      log: ({ args }) => {
-        console.log('[finance]', args[0] ?? '')
-      }
+      log: ({ args }) => console.log("[finance]", args[0] ?? "")
     }
   })
 
@@ -29,10 +27,7 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: 'portfolio', args: ['pf1', 'Alice'] },
-    { name: 'asset', args: ['a1', 'stock', 100, 50] },
-    { name: 'portfolio', args: ['pf2', 'Bob'] },
-    { name: 'investment', args: ['inv1', 'pf1', 5000] }
+    { name: "portfolio", args: ['id1', 'id1', 'id1'] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))

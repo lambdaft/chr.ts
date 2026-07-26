@@ -1,5 +1,0 @@
-constraints input/1, approved/1;
-functions positive/1, inc/1;
-actions record/1;
-
-approve @ input(X) ==> positive(X) | !record(X), approved(inc(X));

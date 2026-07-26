@@ -7,20 +7,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'social.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, 'social.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
-      popularity: (ctx, ...args) => 0,
-      is_following: (ctx, ...args) => 0,
-      unread: (ctx, ...args) => 0,
-      engagement: (ctx, ...args) => 0,
-      hashtag: (ctx, ...args) => 0
+      is_viral: (ctx, ...args) => 0,
+      is_popular: (ctx, ...args) => 0,
+      length: (ctx, ...args) => 0,
+      is_recent: (ctx, ...args) => 0,
+      count: (ctx, ...args) => 0
     },
     actions: {
-      log: ({ args }) => {
-        console.log('[social]', args[0] ?? '')
-      }
+      log: ({ args }) => console.log("[social]", args[0] ?? "")
     }
   })
 
@@ -29,10 +27,7 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: 'user', args: ['u1', 'Alice', '@alice', 500] },
-    { name: 'post', args: ['p1', 'u1', 'Hello world!', 10] },
-    { name: 'follow', args: ['u2', 'u1', '2026-01-01'] },
-    { name: 'notification', args: ['u1', 'like', 'liked your post'] }
+    { name: "user", args: ['id1', 'id1', 'id1'] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))

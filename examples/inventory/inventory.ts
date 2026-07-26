@@ -7,20 +7,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'inventory.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, 'inventory.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
-      stock_level: (ctx, ...args) => 0,
-      reorder: (ctx, ...args) => 0,
-      is_urgent: (ctx, ...args) => 0,
-      ship_cost: (ctx, ...args) => 0,
-      priority: (ctx, ...args) => 0
+      is_low: (ctx, ...args) => 0,
+      quantity: (ctx, ...args) => 0,
+      is_perishable: (ctx, ...args) => 0,
+      value: (ctx, ...args) => 0,
+      is_expedited: (ctx, ...args) => 0
     },
     actions: {
-      log: ({ args }) => {
-        console.log('[inventory]', args[0] ?? '')
-      }
+      log: ({ args }) => console.log("[inventory]", args[0] ?? "")
     }
   })
 
@@ -29,10 +27,7 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: 'product', args: ['p1', 'Widget', 'A', 50, 20] },
-    { name: 'supplier', args: ['s1', 'FastCo'] },
-    { name: 'product', args: ['p2', 'Gadget', 'B', 5, 10] },
-    { name: 'shipment', args: ['s1', 'UPS', 'pending'] }
+    { name: "warehouse", args: ['id1', 'id1', 'id1'] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))

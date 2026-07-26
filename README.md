@@ -140,7 +140,7 @@ Guidelines:
 - Keep guards pure.
 - Use actions for logging, metrics, and integration side effects.
 
-See [examples/interop/approval.chr](examples/interop/approval.chr) and [examples/interop/approval.ts](examples/interop/approval.ts) for a complete example.
+See [examples/banking/banking.chr](examples/banking/banking.chr) and [examples/banking/banking.ts](examples/banking/banking.ts) for a complete example.
 
 ## Built-in Host Functions
 
@@ -355,9 +355,126 @@ docs/
   TUTORIAL.md
   COMPARISON.md
 examples/
-  interop/
-    approval.chr
-    approval.ts
+  banking/
+    banking.chr
+    banking.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  calendar/
+    calendar.chr
+    calendar.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  ecommerce/
+    ecommerce.chr
+    ecommerce.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  education/
+    education.chr
+    education.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  finance/
+    finance.chr
+    finance.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  gaming/
+    gaming.chr
+    gaming.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  healthcare/
+    healthcare.chr
+    healthcare.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  hr/
+    hr.chr
+    hr.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  inventory/
+    inventory.chr
+    inventory.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  iot/
+    iot.chr
+    iot.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  library/
+    library.chr
+    library.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  logistics/
+    logistics.chr
+    logistics.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  music/
+    music.chr
+    music.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  restaurant/
+    restaurant.chr
+    restaurant.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  smarthome/
+    smarthome.chr
+    smarthome.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  social/
+    social.chr
+    social.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  sports/
+    sports.chr
+    sports.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  supplychain/
+    supplychain.chr
+    supplychain.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  travel/
+    travel.chr
+    travel.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
+  weather/
+    weather.chr
+    weather.ts
+    package.json
+    tsconfig.json
+    fixup.cjs
 test/
   *.test.mjs
   fixtures/

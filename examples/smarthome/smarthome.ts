@@ -7,20 +7,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'smarthome.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, 'smarthome.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
       is_on: (ctx, ...args) => 0,
-      temp_c: (ctx, ...args) => 0,
-      motion: (ctx, ...args) => 0,
-      trigger: (ctx, ...args) => 0,
-      status: (ctx, ...args) => 0
+      target_temp: (ctx, ...args) => 0,
+      is_night: (ctx, ...args) => 0,
+      is_occupied: (ctx, ...args) => 0,
+      brightness: (ctx, ...args) => 0
     },
     actions: {
-      log: ({ args }) => {
-        console.log('[smarthome]', args[0] ?? '')
-      }
+      log: ({ args }) => console.log("[smarthome]", args[0] ?? "")
     }
   })
 
@@ -29,10 +27,7 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: 'device', args: ['d1', 'light', 'on'] },
-    { name: 'sensor', args: ['s1', 'temp', 25, 30] },
-    { name: 'automation', args: ['a1', 'motion', true, 'turn_on'] },
-    { name: 'alert', args: ['d1', 'info'] }
+    { name: "device", args: ['id1', 'id1', 'id1'] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))

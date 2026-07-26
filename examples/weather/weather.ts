@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'weather.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, 'weather.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
@@ -18,9 +18,7 @@ async function main (): Promise<void> {
       uv_index: (ctx, ...args) => 0
     },
     actions: {
-      log: ({ args }) => {
-        console.log('[weather]', args[0] ?? '')
-      }
+      log: ({ args }) => console.log("[weather]", args[0] ?? "")
     }
   })
 
@@ -29,10 +27,7 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: 'station', args: ['ws1', 'Central', 40.7, -74, 10] },
-    { name: 'alert', args: ['ws1', 'storm', 'warning'] },
-    { name: 'advisory', args: ['ws1', 'heat', 'stay indoors'] },
-    { name: 'forecast', args: ['ws1', '2026-07-26', 95, 72] }
+    { name: "station", args: ['id1', 'id1', 'id1', 'id1', 'id1'] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))

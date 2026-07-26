@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'healthcare.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, 'healthcare.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
@@ -18,9 +18,7 @@ async function main (): Promise<void> {
       refill: (ctx, ...args) => 0
     },
     actions: {
-      log: ({ args }) => {
-        console.log('[healthcare]', args[0] ?? '')
-      }
+      log: ({ args }) => console.log("[healthcare]", args[0] ?? "")
     }
   })
 
@@ -29,10 +27,7 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: 'patient', args: ['p1', 'Alice', 34, 'fever'] },
-    { name: 'appointment', args: ['p1', 'Dr. Smith', '2026-07-25', 10] },
-    { name: 'patient', args: ['p2', 'Bob', 72, 'cardiac'] },
-    { name: 'prescription', args: ['p2', 'Aspirin', 30] }
+    { name: "patient", args: ['id1', 'id1', 'id1', 'id1'] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))
