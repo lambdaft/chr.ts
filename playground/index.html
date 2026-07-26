@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHR.ts Playground</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --panel-bg: #181825;
+    --surface: #252536;
+    --border: #313244;
+    --text: #cdd6f4;
+    --text-dim: #6c7086;
+    --accent: #89b4fa;
+    --accent-hover: #74c7ec;
+    --green: #a6e3a1;
+    --red: #f38ba8;
+    --yellow: #f9e2af;
+    --orange: #fab387;
+    --purple: #cba6f7;
+    --radius: 8px;
+    --font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header h1 span { color: var(--accent); }
+  .header .logo { font-size: 22px; }
+  .header-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .header-controls select, .header-controls button {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font-ui);
+  }
+  .header-controls select:hover, .header-controls button:hover {
+    border-color: var(--accent);
+  }
+  .header-controls button.primary {
+    background: var(--accent);
+    color: #111;
+    font-weight: 600;
+    border-color: var(--accent);
+  }
+  .header-controls button.primary:hover {
+    background: var(--accent-hover);
+  }
+  .header-controls label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .header-controls input[type="checkbox"] {
+    accent-color: var(--accent);
+  }
+
+  /* Main Layout */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Panels */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-left {
+    width: 50%;
+    border-right: 1px solid var(--border);
+  }
+  .panel-right {
+    flex: 1;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .panel-header .badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: var(--surface);
+    color: var(--text-dim);
+  }
+
+  /* Editor */
+  .editor-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .editor-container textarea {
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 16px;
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.6;
+    tab-size: 2;
+    white-space: pre;
+    overflow: auto;
+  }
+  .editor-container textarea::placeholder {
+    color: var(--text-dim);
+  }
+  .line-numbers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 16px 10px 16px 0;
+    text-align: right;
+    color: var(--text-dim);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.6;
+    user-select: none;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  /* Constraint Input */
+  .constraint-section {
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .constraint-input-area {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px;
+    align-items: center;
+  }
+  .constraint-input-area input {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    outline: none;
+  }
+  .constraint-input-area input:focus {
+    border-color: var(--accent);
+  }
+  .constraint-input-area input::placeholder {
+    color: var(--text-dim);
+  }
+  .constraint-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--green);
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .constraint-btn:hover {
+    border-color: var(--green);
+  }
+
+  /* Output Tabs */
+  .output-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--panel-bg);
+  }
+  .output-tab {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .output-tab:hover { color: var(--text); }
+  .output-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .output-tab .count {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 99px;
+    font-size: 10px;
+    background: var(--surface);
+    color: var(--text-dim);
+  }
+
+  /* Output Content */
+  .output-content {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .output-content pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .output-section {
+    display: none;
+  }
+  .output-section.active {
+    display: block;
+  }
+
+  /* Store Table */
+  .store-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .store-table th {
+    text-align: left;
+    padding: 6px 12px;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .store-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font);
+  }
+  .store-table tr:hover td {
+    background: var(--surface);
+  }
+  .id-col { color: var(--text-dim); width: 50px; }
+  .name-col { color: var(--accent); }
+  .args-col { color: var(--green); }
+  .empty-state {
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 20px;
+    text-align: center;
+  }
+
+  /* Traces */
+  .trace-item {
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    background: var(--surface);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .trace-item .label {
+    font-weight: 600;
+    color: var(--yellow);
+  }
+  .trace-item .op-propagation  { color: var(--accent); }
+  .trace-item .op-simplification { color: var(--orange); }
+  .trace-item .op-simpagation  { color: var(--purple); }
+  .trace-item .bindings { color: var(--green); font-size: 11px; }
+  .trace-item .duration { color: var(--text-dim); font-size: 11px; }
+  .trace-item .ids { color: var(--text-dim); font-size: 11px; }
+
+  /* Error */
+  .error-box {
+    padding: 12px 16px;
+    border-radius: 6px;
+    background: rgba(243, 139, 168, 0.1);
+    border: 1px solid var(--red);
+    color: var(--red);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    font-family: var(--font);
+  }
+  .error-box .label {
+    font-weight: 600;
+    font-family: var(--font-ui);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .success-box {
+    padding: 12px 16px;
+    border-radius: 6px;
+    background: rgba(166, 227, 161, 0.1);
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: var(--font);
+  }
+  .success-box .label {
+    font-weight: 600;
+    font-family: var(--font-ui);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+
+  /* Validation Status Bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 16px;
+    background: var(--panel-bg);
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .status-bar .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .status-bar .dot.ready { background: var(--green); }
+  .status-bar .dot.error { background: var(--red); }
+  .status-bar .dot.running { background: var(--yellow); animation: pulse 0.8s ease-in-out infinite; }
+  .status-bar .dot.empty { background: var(--text-dim); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Resize Handle */
+  .resize-handle {
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+    transition: background 0.15s;
+  }
+  .resize-handle:hover, .resize-handle.active {
+    background: var(--accent);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .main { flex-direction: column; }
+    .panel-left { width: 100% !important; border-right: none; max-height: 50vh; }
+    .panel-right { flex: 1; }
+    .header { flex-direction: column; gap: 8px; align-items: stretch; }
+    .header-controls { justify-content: center; }
+    .resize-handle { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>
+    <span class="logo">⚡</span>
+    CHR.ts <span>Playground</span>
+  </h1>
+  <div class="header-controls">
+    <select id="exampleSelect" title="Load example">
+      <option value="">📂 Load Example...</option>
+      <option value="banking">Banking</option>
+      <option value="calendar">Calendar</option>
+      <option value="ecommerce">E-Commerce</option>
+      <option value="education">Education</option>
+      <option value="finance">Finance</option>
+      <option value="gaming">Gaming</option>
+      <option value="healthcare">Healthcare</option>
+      <option value="hr">HR</option>
+      <option value="inventory">Inventory</option>
+      <option value="iot">IoT</option>
+      <option value="library">Library</option>
+      <option value="logistics">Logistics</option>
+      <option value="music">Music</option>
+      <option value="smarthome">Smart Home</option>
+      <option value="social">Social</option>
+      <option value="sports">Sports</option>
+      <option value="supplychain">Supply Chain</option>
+      <option value="travel">Travel</option>
+      <option value="weather">Weather</option>
+    </select>
+    <label>
+      <input type="checkbox" id="builtinsToggle" checked>
+      Builtins
+    </label>
+    <label>
+      <input type="checkbox" id="autoRunToggle">
+      Auto-run
+    </label>
+    <button id="runBtn" class="primary">▶ Run</button>
+    <button id="clearBtn">✕ Clear</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Left Panel: Editor -->
+  <div class="panel panel-left" id="leftPanel">
+    <div class="panel-header">
+      <span>Rules (*.chr)</span>
+      <span class="badge" id="lineCount">0 lines</span>
+    </div>
+    <div class="editor-container">
+      <textarea id="editor" spellcheck="false" placeholder="; Write CHR rules here...
+; Example:
+;   constraint edge/2, path/2.
+;   path(X,Y) \ edge(X,Y) ==> path(X,Y).
+;   path(X,Z) \ path(X,Y), edge(Y,Z) ==> path(X,Z).
+;
+; Then type constraints below and click Run."></textarea>
+    </div>
+    <div class="constraint-section">
+      <div class="panel-header" style="border-top: none;">
+        <span>Constraints to Assert</span>
+        <span class="badge">one per line: name(args)</span>
+      </div>
+      <div class="constraint-input-area">
+        <input id="constraintInput" type="text" placeholder='e.g. edge(1,2), edge(2,3), path(1,2)' 
+               title="Comma-separated constraints to assert"/>
+        <button id="assertResetBtn" class="constraint-btn" title="Assert these constraints (clears previous store)">⟳ Reset & Assert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resize Handle -->
+  <div class="resize-handle" id="resizeHandle"></div>
+
+  <!-- Right Panel: Output -->
+  <div class="panel panel-right">
+    <div class="panel-header">
+      <span>Output</span>
+      <span class="badge" id="storeCount">0 constraints</span>
+    </div>
+
+    <div class="output-tabs">
+      <div class="output-tab active" data-tab="store">Store</div>
+      <div class="output-tab" data-tab="traces">Traces <span class="count" id="traceCount">0</span></div>
+      <div class="output-tab" data-tab="errors">Errors</div>
+      <div class="output-tab" data-tab="source">AST</div>
+    </div>
+
+    <div class="output-content" id="outputContent">
+      <!-- Store tab -->
+      <div class="output-section active" id="tab-store">
+        <div class="empty-state">Run rules to see the constraint store state.</div>
+      </div>
+      <!-- Traces tab -->
+      <div class="output-section" id="tab-traces">
+        <div class="empty-state">No rule firings yet.</div>
+      </div>
+      <!-- Errors tab -->
+      <div class="output-section" id="tab-errors">
+        <div class="empty-state">No errors.</div>
+      </div>
+      <!-- Source tab -->
+      <div class="output-section" id="tab-source">
+        <div class="empty-state">Parsed AST will appear here.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <span class="dot ready" id="statusDot"></span>
+  <span id="statusText">Ready</span>
+  <span style="flex:1"></span>
+  <span id="firingCount">Firings: 0</span>
+</div>
+
+<script src="./chrts-bundle.js"></script>
+<script>
+
+// ============================================================
+// DOM refs
+// ============================================================
+const editor = document.getElementById('editor');
+const constraintInput = document.getElementById('constraintInput');
+const runBtn = document.getElementById('runBtn');
+const clearBtn = document.getElementById('clearBtn');
+const assertResetBtn = document.getElementById('assertResetBtn');
+const exampleSelect = document.getElementById('exampleSelect');
+const builtinsToggle = document.getElementById('builtinsToggle');
+const autoRunToggle = document.getElementById('autoRunToggle');
+const lineCount = document.getElementById('lineCount');
+const storeCount = document.getElementById('storeCount');
+const traceCount = document.getElementById('traceCount');
+const firingCount = document.getElementById('firingCount');
+const statusText = document.getElementById('statusText');
+const statusDot = document.getElementById('statusDot');
+const outputContent = document.getElementById('outputContent');
+
+// ============================================================
+// Engine State
+// ============================================================
+let engine = null;
+let traces = [];
+let currentError = null;
+let engineState = 'empty';
+
+// ============================================================
+// Tab switching
+// ============================================================
+document.querySelectorAll('.output-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.output-section').forEach(s => s.classList.remove('active'));
+    tab.classList.add('active');
+    const section = document.getElementById('tab-' + tab.dataset.tab);
+    if (section) section.classList.add('active');
+  });
+});
+
+// ============================================================
+// Line count
+// ============================================================
+editor.addEventListener('input', () => {
+  const lines = editor.value.split('\n').length;
+  lineCount.textContent = lines + ' lines';
+});
+
+// ============================================================
+// Editor storage
+// ============================================================
+// Restore last session
+const saved = localStorage.getItem('chrts-editor');
+if (saved) editor.value = saved;
+editor.addEventListener('input', () => {
+  localStorage.setItem('chrts-editor', editor.value);
+});
+
+// ============================================================
+// Set status
+// ============================================================
+function setStatus(state, message) {
+  engineState = state;
+  statusDot.className = 'dot ' + state;
+  statusText.textContent = message;
+}
+
+// ============================================================
+// Build and run engine
+// ============================================================
+async function runEngine(assertNewOnly = false) {
+  const source = editor.value.trim();
+  if (!source) {
+    setStatus('empty', 'No rules loaded');
+    return;
+  }
+
+  traces = [];
+  currentError = null;
+  const useBuiltins = builtinsToggle.checked;
+
+  try {
+    setStatus('running', 'Parsing...');
+
+    // Validate syntax first
+    const program = parseProgram(source);
+    
+    setStatus('running', 'Initializing engine...');
+
+    engine = new BrowserCHREngine({
+      onRuleFired: (trace) => {
+        traces.push(trace);
+        updateTraces();
+      },
+      maxRuleFirings: 5000
+    });
+
+    if (useBuiltins) {
+      engine.registerBuiltins();
+    }
+
+    // Register all examples' host functions automatically
+    registerExampleHosts(engine);
+
+    engine.addProgram(program);
+
+    setStatus('running', 'Engine ready. Asserting constraints...');
+
+    // Parse constraint input
+    const constraintText = constraintInput.value.trim();
+    if (constraintText) {
+      const constraints = parseConstraintInput(constraintText);
+      if (constraints.length > 0) {
+        await engine.assertMany(constraints);
+      }
+    } else {
+      // If no constraints, run fixpoint on empty store (just validates)
+      setStatus('ready', 'Engine loaded. Add constraints and run.');
+    }
+
+    // Display results
+    displayStore();
+    updateTraces();
+    displaySourceAST(program);
+    updateCounts();
+
+    if (engine.getState() === 'error') {
+      setStatus('error', 'Engine entered error state');
+    } else {
+      setStatus('ready', `Done — ${engine.store.size()} constraints in store`);
+    }
+
+  } catch (err) {
+    console.error('Engine error:', err);
+    currentError = err;
+    displayError(err);
+    setStatus('error', err.message.split('\n')[0]);
+  }
+}
+
+// ============================================================
+// Parse constraint input
+// ============================================================
+function parseConstraintInput(text) {
+  // Format: name1(arg1, arg2), name2(arg1), ...
+  // Also supports: name
+  const entries = [];
+  let depth = 0;
+  let current = '';
+  let inQuote = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuote) {
+      current += ch;
+      if (ch === "'" || ch === '"') inQuote = false;
+      continue;
+    }
+    if (ch === "'" || ch === '"') { inQuote = true; current += ch; continue; }
+    if (ch === '(' || ch === '[') { depth++; current += ch; continue; }
+    if (ch === ')' || ch === ']') { depth--; current += ch; continue; }
+    if (ch === ',' && depth === 0) {
+      const trimmed = current.trim();
+      if (trimmed) entries.push(trimmed);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  const last = current.trim();
+  if (last) entries.push(last);
+
+  return entries.map(entry => {
+    // Try to parse as name(args)
+    const m = entry.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)\s*$/);
+    if (m) {
+      const name = m[1];
+      const argsStr = m[2].trim();
+      const args = argsStr ? parseConstraintArgs(argsStr) : [];
+      return { name, args };
+    }
+    // No args
+    if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(entry)) {
+      return { name: entry, args: [] };
+    }
+    throw new Error(`Invalid constraint: "${entry}". Use format: name(arg1, arg2) or name`);
+  });
+}
+
+function parseConstraintArgs(text) {
+  const args = [];
+  let depth = 0;
+  let current = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '(' || ch === '[') { depth++; current += ch; continue; }
+    if (ch === ')' || ch === ']') { depth--; current += ch; continue; }
+    if (ch === ',' && depth === 0) {
+      args.push(parseArgValue(current.trim()));
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  const last = current.trim();
+  if (last) args.push(parseArgValue(last));
+  return args;
+}
+
+function parseArgValue(str) {
+  // Try number
+  if (/^-?\d+(\.\d+)?$/.test(str)) return Number(str);
+  // Try boolean
+  if (str === 'true') return true;
+  if (str === 'false') return false;
+  if (str === 'null') return null;
+  // Try string (quoted)
+  if ((str.startsWith("'") && str.endsWith("'")) || (str.startsWith('"') && str.endsWith('"'))) {
+    return str.slice(1, -1);
+  }
+  // Treat as string literal
+  return str;
+}
+
+// ============================================================
+// Register host functions for examples
+// ============================================================
+function registerExampleHosts(engine) {
+  // Host functions used across all 19 examples
+  engine.registerHost({
+    functions: {
+      // banking
+      balance: (_ctx, ...args) => args[0] ?? 0,
+      eligible: (_ctx, ...args) => 1,
+      overdrawn: (_ctx, ...args) => 0,
+      interest: (_ctx, ...args) => 0,
+      // calendar
+      overlaps: (_ctx, ...args) => true,
+      priority: (_ctx, ...args) => 1,
+      duration: (_ctx, ...args) => args[0] ?? 0,
+      is_urgent: (_ctx, ...args) => 1,
+      // ecommerce
+      total: (_ctx, ...args) => args[0] ?? 0,
+      apply_disc: (_ctx, ...args) => args[0] ?? 0,
+      is_valid: (_ctx, ...args) => true,
+      in_stock: (_ctx, ...args) => true,
+      rating: (_ctx, ...args) => 5,
+      // education
+      gpa: (_ctx, ...args) => args[0] ?? 3,
+      passed: (_ctx, ...args) => true,
+      is_fulltime: (_ctx, ...args) => true,
+      grade_avg: (_ctx, ...args) => args[0] ?? 80,
+      due_soon: (_ctx, ...args) => true,
+      // finance
+      value: (_ctx, ...args) => args[0] ?? 0,
+      is_risky: (_ctx, ...args) => 1,
+      returns: (_ctx, ...args) => args[0] ?? 0,
+      liquid: (_ctx, ...args) => true,
+      appreciates: (_ctx, ...args) => true,
+      // gaming
+      level: (_ctx, ...args) => args[0] ?? 1,
+      is_win: (_ctx, ...args) => true,
+      bonus: (_ctx, ...args) => args[0] ?? 10,
+      rarity: (_ctx, ...args) => 1,
+      power: (_ctx, ...args) => args[0] ?? 10,
+      // healthcare
+      urgent: (_ctx, ...args) => 1,
+      follow_up: (_ctx, ...args) => true,
+      refill: (_ctx, ...args) => true,
+      // hr
+      is_senior: (_ctx, ...args) => 1,
+      is_mandatory: (_ctx, ...args) => true,
+      credit: (_ctx, ...args) => args[0] ?? 0,
+      // inventory
+      is_low: (_ctx, ...args) => 1,
+      quantity: (_ctx, ...args) => args[0] ?? 0,
+      is_perishable: (_ctx, ...args) => true,
+      is_expedited: (_ctx, ...args) => 1,
+      // iot
+      is_critical: (_ctx, ...args) => 1,
+      is_online: (_ctx, ...args) => true,
+      temperature: (_ctx, ...args) => args[0] ?? 72,
+      humidity: (_ctx, ...args) => args[0] ?? 50,
+      motion: (_ctx, ...args) => 1,
+      // library
+      is_overdue: (_ctx, ...args) => 1,
+      is_reserved: (_ctx, ...args) => 1,
+      category: (_ctx, ...args) => args[0] ?? 'general',
+      popularity: (_ctx, ...args) => 1,
+      late_fee: (_ctx, ...args) => args[0] ?? 5,
+      // logistics
+      is_express: (_ctx, ...args) => 1,
+      eta: (_ctx, ...args) => args[0] ?? 0,
+      capacity: (_ctx, ...args) => args[0] ?? 100,
+      distance: (_ctx, ...args) => args[0] ?? 0,
+      // music
+      is_hit: (_ctx, ...args) => 1,
+      genre: (_ctx, ...args) => args[0] ?? 'pop',
+      bpm: (_ctx, ...args) => args[0] ?? 120,
+      likes: (_ctx, ...args) => 1,
+      // smarthome
+      is_on: (_ctx, ...args) => true,
+      target_temp: (_ctx, ...args) => args[0] ?? 72,
+      is_night: (_ctx, ...args) => 1,
+      is_occupied: (_ctx, ...args) => 1,
+      brightness: (_ctx, ...args) => args[0] ?? 50,
+      // social
+      is_viral: (_ctx, ...args) => 1,
+      is_popular: (_ctx, ...args) => 1,
+      length: (_ctx, ...args) => args[0] ?? 0,
+      is_recent: (_ctx, ...args) => true,
+      count: (_ctx, ...args) => args[0] ?? 0,
+      // sports
+      is_winning: (_ctx, ...args) => 1,
+      is_injured: (_ctx, ...args) => 1,
+      position: (_ctx, ...args) => args[0] ?? 'forward',
+      is_home: (_ctx, ...args) => true,
+      pts: (_ctx, ...args) => args[0] ?? 0,
+      // supplychain
+      is_backordered: (_ctx, ...args) => 1,
+      is_oversupplied: (_ctx, ...args) => 1,
+      is_fragile: (_ctx, ...args) => true,
+      demand: (_ctx, ...args) => args[0] ?? 0,
+      lead_time: (_ctx, ...args) => args[0] ?? 0,
+      // travel
+      is_available: (_ctx, ...args) => true,
+      price: (_ctx, ...args) => args[0] ?? 0,
+      bookable: (_ctx, ...args) => true,
+      is_peak: (_ctx, ...args) => 1,
+      // weather
+      temp_f: (_ctx, ...args) => args[0] ?? 72,
+      is_severe: (_ctx, ...args) => 1,
+      wind_speed: (_ctx, ...args) => args[0] ?? 10,
+      uv_index: (_ctx, ...args) => args[0] ?? 5,
+      // utilities
+      one: (_ctx, ...args) => 1,
+      empty: (_ctx, ...args) => '',
+      debug: (_ctx, ...args) => { console.log('[CHR debug]', ...args); return true; }
+    },
+    actions: {
+      log: ({ args }) => {
+        const msg = args[0] ?? '';
+        const traceEl = document.createElement('div');
+        traceEl.className = 'trace-item';
+        traceEl.innerHTML = `<span style="color:var(--text-dim)">🔔</span> <span style="color:var(--orange)">log</span> <span class="bindings">${String(msg)}</span>`;
+        document.getElementById('tab-traces').prepend(traceEl);
+      }
+    }
+  });
+}
+
+// ============================================================
+// Display store
+// ============================================================
+function displayStore() {
+  const container = document.getElementById('tab-store');
+  if (!engine || engine.store.size() === 0) {
+    container.innerHTML = '<div class="empty-state">No constraints in store.</div>';
+    return;
+  }
+  
+  const snapshot = engine.store.snapshot();
+  let html = '<table class="store-table"><thead><tr><th class="id-col">#</th><th class="name-col">Constraint</th><th>Args</th></tr></thead><tbody>';
+  for (const entry of snapshot) {
+    const argsStr = entry.arity === 0 ? '' : entry.args.map(a => formatArg(a)).join(', ');
+    const nameStr = entry.arity === 0 ? entry.name : `${entry.name}`;
+    html += `<tr><td class="id-col">${entry.id}</td><td class="name-col">${nameStr}</td><td class="args-col">${argsStr}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function formatArg(arg) {
+  if (typeof arg === 'string') return `'${arg}'`;
+  if (arg === null) return 'null';
+  return String(arg);
+}
+
+// ============================================================
+// Display traces
+// ============================================================
+function updateTraces() {
+  const container = document.getElementById('tab-traces');
+  traceCount.textContent = traces.length;
+  firingCount.textContent = `Firings: ${traces.length}`;
+
+  if (traces.length === 0) {
+    container.innerHTML = '<div class="empty-state">No rule firings yet.</div>';
+    return;
+  }
+
+  let html = traces.slice().reverse().map((t, i) => {
+    const kindClass = `op-${t.kind}`;
+    const kindLabel = t.kind === 'propagation' ? '==>' : t.kind === 'simplification' ? '<=>' : '\\ <=>';
+    const bindingsStr = Object.entries(t.bindings).map(([k, v]) => `${k}=${formatArg(v)}`).join(', ');
+    const durationStr = t.durationMs ? `${t.durationMs.toFixed(1)}ms` : '';
+    return `<div class="trace-item">
+      <div>
+        <span class="label">${t.ruleName}</span>
+        <span class="${kindClass}"> ${kindLabel} </span>
+        <span class="ids">[#${t.matchedConstraintIds.join(', #')}]</span>
+        ${durationStr ? `<span class="duration"> (${durationStr})</span>` : ''}
+      </div>
+      ${bindingsStr ? `<div class="bindings">${bindingsStr}</div>` : ''}
+    </div>`;
+  }).join('');
+  
+  container.innerHTML = html;
+}
+
+// ============================================================
+// Display error
+// ============================================================
+function displayError(err) {
+  const container = document.getElementById('tab-errors');
+  container.innerHTML = `<div class="error-box">
+    <div class="label">⚠ Error</div>
+    ${escapeHtml(err.message)}
+  </div>`;
+}
+
+// ============================================================
+// Display source AST
+// ============================================================
+function displaySourceAST(program) {
+  const container = document.getElementById('tab-source');
+  const lines = [];
+  lines.push('// Declarations');
+  for (const d of program.declarations) {
+    lines.push(`constraint ${d.name}/${d.arity};`);
+  }
+  for (const d of program.functionDeclarations) {
+    lines.push(`function ${d.name}/${d.arity};`);
+  }
+  for (const d of program.actionDeclarations) {
+    lines.push(`action ${d.name}/${d.arity};`);
+  }
+  for (const d of program.hostImports) {
+    lines.push(`import host ${d.name};`);
+  }
+  lines.push('');
+  lines.push('// Rules');
+  for (const r of program.rules) {
+    const name = r.name ?? '(anonymous)';
+    const kind = r.kind === 'propagation' ? '==>' : r.kind === 'simplification' ? '<=>' : '\\ <=>';
+    const kept = r.kept.map(c => c.name + '(' + c.args.map(a => exprToString(a)).join(',') + ')').join(', ');
+    const removed = r.removed.map(c => c.name + '(' + c.args.map(a => exprToString(a)).join(',') + ')').join(', ');
+    const guards = r.guard.map(g => exprToString(g)).join(', ');
+    const body = r.body.map(b => bodyItemToString(b)).join(', ');
+    let ruleStr = '';
+    if (r.priority !== undefined) ruleStr += `@${r.priority}@ `;
+    if (r.unify) ruleStr += 'unify ';
+    if (kept) ruleStr += kept;
+    if (r.kind === 'simpagation') ruleStr += ' \\ ';
+    if (removed && r.kind !== 'propagation') ruleStr += removed;
+    ruleStr += ` ${kind} `;
+    if (guards) ruleStr += `${guards} | `;
+    ruleStr += body;
+    lines.push(`  ${name} @ ${ruleStr};`);
+  }
+  
+  container.innerHTML = `<pre style="color:var(--accent);font-size:12px;">${lines.join('\n')}</pre>`;
+}
+
+function exprToString(expr) {
+  if (expr.type === 'variable') return expr.name;
+  if (expr.type === 'literal') return String(expr.value);
+  if (expr.type === 'call') return expr.callee + '(' + expr.args.map(a => exprToString(a)).join(', ') + ')';
+  if (expr.type === 'binary') return `(${exprToString(expr.left)} ${expr.operator} ${exprToString(expr.right)})`;
+  if (expr.type === 'unary') return expr.operator + exprToString(expr.operand);
+  if (expr.type === 'array') return '[' + expr.elements.map(e => exprToString(e)).join(', ') + ']';
+  return '?';
+}
+
+function bodyItemToString(item) {
+  if (item.type === 'constraint') return exprToString({ type: 'call', callee: item.constraint.name, args: item.constraint.args });
+  if (item.type === 'action') return '!' + item.name + '(' + item.args.map(a => exprToString(a)).join(', ') + ')';
+  if (item.type === 'update') return exprToString({ type: 'call', callee: item.old.name, args: item.old.args }) + ' <= ' + exprToString({ type: 'call', callee: item.constraint.name, args: item.constraint.args });
+  if (item.type === 'let') return 'let ' + item.name + ' = ' + exprToString(item.expr);
+  return '?';
+}
+
+// ============================================================
+// Update counts
+// ============================================================
+function updateCounts() {
+  if (engine) {
+    storeCount.textContent = engine.store.size() + ' constraints';
+  }
+}
+
+// ============================================================
+// Clear
+// ============================================================
+function clearAll() {
+  engine = null;
+  traces = [];
+  currentError = null;
+  document.getElementById('tab-store').innerHTML = '<div class="empty-state">Run rules to see the constraint store state.</div>';
+  document.getElementById('tab-traces').innerHTML = '<div class="empty-state">No rule firings yet.</div>';
+  document.getElementById('tab-errors').innerHTML = '<div class="empty-state">No errors.</div>';
+  document.getElementById('tab-source').innerHTML = '<div class="empty-state">Parsed AST will appear here.</div>';
+  traceCount.textContent = '0';
+  firingCount.textContent = 'Firings: 0';
+  storeCount.textContent = '0 constraints';
+  setStatus('empty', 'Cleared');
+}
+
+// ============================================================
+// Inline examples (avoids fetch() which is blocked on file://)
+// ============================================================
+const EXAMPLES = {
+  banking: { source: `constraints account/3, transaction/3, loan/3, payment/2;
+functions balance/2, eligible/1, overdrawn/1, interest/2;
+actions log/1;
+import host builtins;
+
+loan(X, C, A) <=> lt(A, 0) | loan(X, C, 0), !log("Loan cleared");
+account(X, O, B) <=> lt(B, 0) | account(X, O, 0), !log("Account cleared");
+transaction(X, T, D) <=> eq(D, "unknown") | !log("Unknown transaction");
+loan(X, C, A) <=> gte(A, 5000) | !log("Large loan");
+account(X, O, B) <=> gt(B, 50000) | !log("Premium account");
+transaction(X, T, D) <=> !log("Processed");
+loan(X, C, A), account(X, C, B) <=> gte(B, A) | !log("Loan fully covered");
+transaction(X, T, D), account(X, O, B) ==> eq(D, "deposit") | account(X, O, add(B, 100));
+transaction(X, T, D), account(X, O, B) ==> eq(D, "withdraw"), gte(B, 50) | account(X, O, sub(B, 50));
+account(X, O, B), loan(X, O, A) ==> gte(B, A) | !log("Loan covered by balance");
+loan(X, C, A) ==> eq(A, 0) | !log("Loan fully paid");
+transaction(X, T, D) ==> eq(D, "transfer") | !log("Transfer initiated");
+account(X, O, B) ==> lt(B, 100) | !log("Low balance");
+payment(X, P), account(X, O, B) ==> gt(P, B) | !log("Payment exceeds balance");
+loan(X, C, A) ==> eligible(A) | !log("Loan is eligible");
+account(X, O, B) \\ transaction(X, T, "deposit") <=> eq(T, "deposit") | account(X, O, add(B, 100));
+account(X, O, B) \\ transaction(X, T, "withdraw") <=> eq(T, "withdraw"), gte(B, 50) | account(X, O, sub(B, 50));
+loan(X, C, A) \\ payment(X, P) <=> eq(P, "full") | loan(X, C, 0), !log("Loan paid off");
+account(X, O, B) \\ fee(X, F) <=> gte(B, F) | account(X, O, sub(B, F)), !log("Fee paid");
+account(X, O, B) \\ account(X, O, B) <=> gte(B, 0) | account(X, O, B), !log("Account validated");`, hint: 'account("Alice", "checking", 1000), transaction("Alice", "deposit", "deposit")' },
+  calendar: { source: `constraints event/3, reminder/3, conflict/2, invite/2, attendee/2;
+functions overlaps/2, priority/1, duration/2, is_urgent/1;
+actions log/1;
+import host builtins;
+
+event(X, S, E) <=> gt(E, S) | !log("Valid event");
+reminder(X, T, M) <=> lt(T, 0) | !log("Past reminder");
+conflict(X, Y) <=> eq(X, Y) | !log("Self conflict");
+invite(X, E) <=> eq(E, "cancelled") | !log("Invite cancelled");
+attendee(X, E) <=> eq(E, "declined") | !log("Attendee declined");
+event(X, S, E) <=> overlaps(S, E) | !log("Overlapping event");
+reminder(X, T, M) <=> is_urgent(T) | !log("Urgent reminder");
+event(X, S, E), reminder(X, T, M) ==> overlaps(S, E) | !log("Reminder during event");
+event(X, S, E), invite(X, I) ==> eq(I, "pending") | !log("Pending invite for event");
+attendee(X, E), invite(X, E) ==> eq(E, "pending") | !log("Attendee invited");
+conflict(X, Y), event(X, S1, E1), event(Y, S2, E2) ==> overlaps(S1, E1) | !log("Conflict overlap");
+event(X, S, E) ==> priority(S) | !log("High priority event");
+reminder(X, T, M) ==> lt(T, 60) | !log("Short notice reminder");
+attendee(X, E) ==> eq(E, "accepted") | !log("Attendee accepted");
+event(X, S, E) \\ invite(X, I) <=> eq(I, "needs_action") | event(X, S, E), !log("Event needs action");
+reminder(X, T, M) \\ event(X, S, E) <=> overlaps(S, E) | !log("Reminder set for event");
+conflict(X, Y) \\ event(X, S, E) <=> overlaps(S, E) | conflict(X, Y), !log("Conflict registered");
+invite(X, E) \\ attendee(X, A) <=> eq(A, "accepted") | invite(X, E), !log("Invite updated");
+attendee(X, E) \\ event(X, S, E) <=> eq(E, "attending") | attendee(X, E), !log("Attendee confirmed");
+event(X, S, E) \\ event(X, S, E) <=> priority(S) | event(X, S, E), !log("Event prioritzied");`, hint: 'event("meeting", "2024-01-01", 60)' },
+  ecommerce: { source: `constraints product/4, cart/3, order/3, user/3, discount/2, review/3;
+functions total/2, apply_disc/2, is_valid/1, in_stock/1, rating/2;
+actions log/1;
+import host builtins;
+
+product(X, N, P, S) <=> lt(S, 1) | !log("Out of stock");
+cart(X, U, I) <=> eq(I, []) | !log("Empty cart");
+order(X, U, S) <=> eq(S, "pending") | !log("Pending order");
+user(X, E, T) <=> eq(T, "new") | !log("New user");
+discount(X, P) <=> gt(P, 50) | !log("Huge discount");
+review(X, P, R) <=> lt(R, 1) | !log("Bad review");
+product(X, N, P, S) <=> gt(P, 1000) | !log("Expensive item");
+cart(X, U, I), discount(X, P) ==> in_stock(I) | cart(X, U, apply_disc(I, P)), !log("Discount applied");
+order(X, U, S), user(X, E, T) ==> eq(T, "premium") | order(X, U, "fast_track"), !log("Fast track order");
+product(X, N, P, S), cart(X, U, I) ==> lt(S, 5) | !log("Low stock alert");
+cart(X, U, I) ==> eq(U, U) | !log("Large order");
+order(X, U, S) ==> eq(S, "shipped") | !log("Order shipped");
+user(X, E, T) ==> eq(T, "vip") | !log("VIP user");
+review(X, P, R) ==> gt(R, 4) | !log("Excellent review");
+product(X, N, P, S) \\ cart(X, U, I) <=> in_stock(I) | cart(X, U, I), !log("Stock verified");
+cart(X, U, I) \\ discount(X, P) <=> eq(P, "active") | cart(X, U, I), !log("Discount active");
+order(X, U, S) \\ review(X, O, R) <=> eq(R, "positive") | order(X, U, S), !log("Order reviewed");
+user(X, E, T) \\ discount(X, P) <=> eq(T, "new") | discount(X, 10), !log("Welcome discount");
+product(X, N, P, S) \\ product(X, N, P, S) <=> gt(S, 0) | product(X, N, P, S), !log("Product validated");
+cart(X, U, I) \\ cart(X, U, I) <=> in_stock(I) | cart(X, U, I), !log("Cart validated");`, hint: 'cart("user1", "item1", 1), product("laptop", "Gaming Laptop", 1000, 5)' },
+  education: { source: `constraints student/3, course/3, grade/3, enrollment/2, assignment/3;
+functions gpa/2, passed/1, is_fulltime/1, grade_avg/2, due_soon/1;
+actions log/1;
+import host builtins;
+
+student(X, N, S) <=> eq(S, "inactive") | !log("Inactive student");
+course(X, C, Cr) <=> lt(Cr, 1) | !log("Zero credit course");
+grade(X, C, G) <=> lt(G, 0) | !log("Invalid grade");
+enrollment(X, S) <=> eq(S, "dropped") | !log("Dropped enrollment");
+assignment(X, C, D) <=> lt(D, 0) | !log("Past due assignment");
+student(X, N, S) <=> is_fulltime(S) | !log("Full-time student");
+grade(X, C, G) <=> passed(G) | !log("Passed grade");
+enrollment(X, S), course(X, C, Cr) ==> eq(S, "active") | course(X, C, Cr), !log("Active enrollment");
+student(X, N, S), grade(X, C, G) ==> gte(G, 3) | !log("Good standing");
+course(X, C, Cr), assignment(X, C, D) ==> due_soon(D) | !log("Assignment due soon");
+grade(X, C, G) ==> lt(G, 60) | !log("Failing grade");
+enrollment(X, S) ==> eq(S, "probation") | !log("Academic probation");
+assignment(X, C, D) ==> eq(D, "submitted") | !log("Assignment submitted");
+student(X, N, S) ==> eq(S, "graduating") | !log("Graduating student");
+enrollment(X, S) \\ course(X, C, Cr) <=> eq(S, "active") | enrollment(X, S), !log("Enrollment active");
+grade(X, C, G) \\ student(X, N, S) <=> gte(G, 3) | grade(X, C, G), !log("Grade verified");
+assignment(X, C, D) \\ enrollment(X, S) <=> eq(S, "active") | assignment(X, C, D), !log("Assignment for active student");
+course(X, C, Cr) \\ assignment(X, C, D) <=> due_soon(D) | course(X, C, Cr), !log("Course has due work");
+student(X, N, S) \\ student(X, N, S) <=> eq(S, "active") | student(X, N, S), !log("Student status set");
+grade(X, C, G) \\ grade(X, C, G) <=> gte(G, 0) | grade(X, C, G), !log("Grade finalized");`, hint: 'student("Alice", "math", 85), course("math", "pass", 60)' },
+  finance: { source: `constraints portfolio/3, investment/4, risk/2, asset/3, dividend/3;
+functions value/2, is_risky/1, returns/2, liquid/1, appreciates/1;
+actions log/1;
+import host builtins;
+
+portfolio(X, O, V) <=> lt(V, 0) | !log("Negative portfolio");
+investment(X, T, A, C) <=> lt(C, 0) | !log("Negative cost");
+risk(X, L) <=> gt(L, 10) | !log("High risk");
+asset(X, T, V) <=> lt(V, 0) | !log("Negative asset value");
+dividend(X, I, A) <=> lt(A, 0) | !log("Negative dividend");
+portfolio(X, O, V) <=> gt(V, 1000000) | !log("Millionaire portfolio");
+investment(X, T, A, C) <=> is_risky(T) | !log("Risky investment");
+portfolio(X, O, V), investment(X, T, A, C) ==> value(A, C) | portfolio(X, O, add(V, C));
+asset(X, T, V), investment(X, T, A, C) ==> appreciates(T) | !log("Appreciating asset");
+risk(X, L), investment(X, T, A, C) ==> gt(L, 5) | !log("High risk investment");
+dividend(X, I, A), investment(X, T, A, C) ==> liquid(T) | dividend(X, I, A), !log("Liquid dividend");
+portfolio(X, O, V) ==> gt(V, 500000) | !log("High value portfolio");
+investment(X, T, A, C) ==> returns(A, C) | !log("Investment returning");
+asset(X, T, V) ==> liquid(T) | !log("Liquid asset");
+portfolio(X, O, V) \\ investment(X, T, A, C) <=> value(A, C) | portfolio(X, O, add(V, C)), !log("Portfolio updated");
+risk(X, L) \\ asset(X, T, V) <=> gt(L, 7) | risk(X, L), !log("Asset risk verified");
+investment(X, T, A, C) \\ dividend(X, I, D) <=> eq(D, "paid") | investment(X, T, A, C), !log("Dividend paid");
+asset(X, T, V) \\ asset(X, T, V) <=> gt(V, 0) | asset(X, T, V), !log("Asset validated");
+portfolio(X, O, V) \\ portfolio(X, O, V) <=> gt(V, 0) | portfolio(X, O, V), !log("Portfolio validated");
+dividend(X, I, A) \\ dividend(X, I, A) <=> gt(A, 0) | dividend(X, I, A), !log("Dividend verified");`, hint: 'portfolio("Alice", "tech", 5000), investment("Alice", "AAPL", 100, 150)' },
+  gaming: { source: `constraints player/3, match/4, score/3, achievement/2, item/3;
+functions level/2, is_win/1, bonus/2, rarity/1, power/1;
+actions log/1;
+import host builtins;
+
+player(X, N, L) <=> lt(L, 1) | !log("Beginner player");
+match(X, P1, P2, R) <=> eq(R, "pending") | !log("Pending match");
+score(X, P, Pts) <=> lt(Pts, 0) | !log("Invalid score");
+achievement(X, A) <=> eq(A, "locked") | !log("Locked achievement");
+item(X, T, R) <=> eq(R, "common") | !log("Common item");
+player(X, N, L) <=> gt(L, 50) | !log("High level");
+score(X, P, Pts) <=> is_win(Pts) | !log("Winning score");
+match(X, P1, P2, R), player(X, P1, L1), player(X, P2, L2) ==> gt(L1, L2) | match(X, P1, P2, "P1_wins"), !log("P1 wins");
+score(X, P, Pts), player(X, P, L) ==> gt(Pts, 100) | player(X, P, add(L, 1)), !log("Level up");
+achievement(X, A), score(X, P, Pts) ==> gt(Pts, 200) | achievement(X, "unlocked"), !log("Achievement unlocked");
+item(X, T, R), score(X, P, Pts) ==> rarity(R) | !log("Rare item found");
+match(X, P1, P2, R) ==> eq(R, "draw") | !log("Match drawn");
+player(X, N, L) ==> level(N, L) | !log("Player leveled");
+item(X, T, R) ==> power(R) | !log("Item powered up");
+match(X, P1, P2, R) \\ player(X, P1, L) <=> eq(R, "P1_wins") | match(X, P1, P2, "finished"), !log("Match completed");
+score(X, P, Pts) \\ achievement(X, A) <=> gt(Pts, 150) | score(X, P, Pts), !log("Score verified");
+player(X, N, L) \\ item(X, T, R) <=> power(R) | player(X, N, L), !log("Item equipped");
+match(X, P1, P2, R) \\ match(X, P1, P2, R) <=> eq(R, "finished") | match(X, P1, P2, "finished"), !log("Match finalized");
+score(X, P, Pts) \\ score(X, P, Pts) <=> gt(Pts, 0) | score(X, P, Pts), !log("Score validated");
+achievement(X, A) \\ achievement(X, A) <=> eq(A, "unlocked") | achievement(X, A), !log("Achievement set");`, hint: 'player("hero", 100, 50), monster("goblin", 30, 10)' },
+  healthcare: { source: `constraints patient/4, appointment/4, diagnosis/3, treatment/3, prescription/3;
+functions urgent/1, follow_up/2, duration/2, is_valid/1, refill/2;
+actions log/1;
+import host builtins;
+
+patient(X, N, A, C) <=> lt(A, 0) | !log("Invalid age");
+appointment(X, D, T, R) <=> eq(R, "cancelled") | !log("Cancelled appointment");
+diagnosis(X, C, S) <=> eq(S, "unknown") | !log("Unknown diagnosis");
+treatment(X, N, P) <=> eq(P, "finished") | !log("Treatment finished");
+prescription(X, M, D) <=> lt(D, 0) | !log("Invalid dosage");
+patient(X, N, A, C) <=> urgent(C) | !log("Urgent patient");
+diagnosis(X, C, S) <=> follow_up(C, true) | !log("Follow up needed");
+patient(X, N, A, C), appointment(X, D, T, R) ==> lt(A, 18) | diagnosis(X, "pediatric", "monitor"), !log("Pediatric case");
+diagnosis(X, C, S), treatment(X, N, P) ==> eq(S, "critical") | treatment(X, N, "immediate"), !log("Emergency treatment");
+prescription(X, M, D), treatment(X, N, P) ==> refill(M, true) | prescription(X, M, add(D, 30)), !log("Refill prescribed");
+appointment(X, D, T, R) ==> eq(R, "confirmed") | !log("Appointment confirmed");
+treatment(X, N, P) ==> eq(P, "completed") | !log("Treatment completed");
+prescription(X, M, D) ==> is_valid(D) | !log("Valid prescription");
+patient(X, N, A, C) ==> duration(A, C) | !log("Duration estimated");
+patient(X, N, A, C) \\ diagnosis(X, C, S) <=> eq(S, "critical") | treatment(X, "emergency", "immediate"), !log("Emergency created");
+appointment(X, D, T, R) \\ treatment(X, N, P) <=> eq(R, "follow-up") | appointment(X, D, T, R), !log("Follow-up scheduled");
+diagnosis(X, C, S) \\ prescription(X, M, D) <=> refill(M, true) | diagnosis(X, C, S), !log("Refill authorized");
+treatment(X, N, P) \\ treatment(X, N, P) <=> eq(P, "ongoing") | treatment(X, N, "ongoing"), !log("Treatment ongoing");
+prescription(X, M, D) \\ prescription(X, M, D) <=> gt(D, 0) | prescription(X, M, D), !log("Prescription active");
+patient(X, N, A, C) \\ patient(X, N, A, C) <=> eq(C, "stable") | patient(X, N, A, "stable"), !log("Patient stable");`, hint: 'patient("John", "John Doe", 35, "stable"), diagnosis("John", "flu", "mild")' },
+  hr: { source: `constraints employee/4, review/3, promotion/2, leave/3, training/2;
+functions is_senior/1, eligible/1, duration/2, is_mandatory/1, credit/2;
+actions log/1;
+import host builtins;
+
+employee(X, N, D, R) <=> eq(R, "inactive") | !log("Inactive employee");
+review(X, E, S) <=> lt(S, 1) | !log("Poor review");
+promotion(X, E) <=> eq(E, "denied") | !log("Promotion denied");
+leave(X, E, T) <=> lt(T, 0) | !log("Negative leave");
+training(X, C) <=> eq(C, "optional") | !log("Optional training");
+employee(X, N, D, R) <=> is_senior(D) | !log("Senior employee");
+review(X, E, S) <=> gt(S, 4) | !log("Excellent review");
+employee(X, N, D, R), review(X, E, S) ==> gt(S, 3) | promotion(X, "recommended"), !log("Recommended for promotion");
+employee(X, N, D, R), leave(X, E, T) ==> gt(T, 30) | !log("Long leave");
+training(X, C), employee(X, N, D, R) ==> is_mandatory(C) | !log("Mandatory training required");
+promotion(X, E) ==> eligible(E) | !log("Eligible for promotion");
+leave(X, E, T) ==> eq(T, "vacation") | !log("Vacation leave");
+training(X, C) ==> credit(X, 5) | !log("Training credits earned");
+review(X, E, S) ==> eq(S, S) | !log("Review duration");
+employee(X, N, D, R) \\ review(X, E, S) <=> gt(S, 3) | employee(X, N, D, R), !log("Review completed");
+promotion(X, E) \\ employee(X, N, D, R) <=> is_senior(D) | promotion(X, E), !log("Promotion approved");
+leave(X, E, T) \\ employee(X, N, D, R) <=> eq(T, "sick") | leave(X, E, T), !log("Sick leave recorded");
+training(X, C) \\ employee(X, N, D, R) <=> is_mandatory(C) | training(X, C), !log("Training assigned");
+employee(X, N, D, R) \\ employee(X, N, D, R) <=> eq(R, "active") | employee(X, N, D, R), !log("Employee active");
+review(X, E, S) \\ review(X, E, S) <=> gt(S, 0) | review(X, E, S), !log("Review finalized");`, hint: 'employee("Alice", "Alice Smith", "engineering", "active"), review("Alice", 2024, 4)' },
+  inventory: { source: `constraints warehouse/3, shipment/4, stock/3, order/3, supplier/2;
+functions is_low/1, quantity/2, is_perishable/1, value/2, is_expedited/1;
+actions log/1;
+import host builtins;
+
+warehouse(X, L, C) <=> eq(C, "closed") | !log("Closed warehouse");
+shipment(X, O, D, S) <=> eq(S, "cancelled") | !log("Cancelled shipment");
+stock(X, I, Q) <=> lt(Q, 0) | !log("Negative stock");
+order(X, C, S) <=> eq(S, "pending") | !log("Pending order");
+supplier(X, R) <=> eq(R, "inactive") | !log("Inactive supplier");
+warehouse(X, L, C) <=> is_low(L) | !log("Low stock warehouse");
+stock(X, I, Q) <=> is_perishable(I) | !log("Perishable stock");
+warehouse(X, L, C), stock(X, I, Q) ==> is_low(L) | order(X, I, "reorder"), !log("Reorder triggered");
+shipment(X, O, D, S), supplier(X, R) ==> eq(R, "preferred") | shipment(X, O, D, "priority"), !log("Priority shipment");
+stock(X, I, Q), order(X, C, S) ==> quantity(I, Q) | !log("Stock quantity noted");
+order(X, C, S) ==> eq(S, "backorder") | !log("Backordered");
+supplier(X, R) ==> eq(R, "active") | !log("Active supplier");
+warehouse(X, L, C) ==> value(L, C) | !log("Warehouse valued");
+shipment(X, O, D, S) ==> is_expedited(S) | !log("Expedited shipment");
+warehouse(X, L, C) \\ stock(X, I, Q) <=> gt(Q, 100) | warehouse(X, L, C), !log("Stock added");
+shipment(X, O, D, S) \\ order(X, C, O) <=> eq(S, "shipped") | shipment(X, O, D, "delivered"), !log("Order shipped");
+stock(X, I, Q) \\ supplier(X, R) <=> eq(R, "active") | stock(X, I, Q), !log("Supplier verified");
+order(X, C, S) \\ order(X, C, S) <=> eq(S, "fulfilled") | order(X, C, "fulfilled"), !log("Order fulfilled");
+warehouse(X, L, C) \\ warehouse(X, L, C) <=> gt(L, 0) | warehouse(X, L, C), !log("Warehouse validated");
+shipment(X, O, D, S) \\ shipment(X, O, D, S) <=> eq(S, "in_transit") | shipment(X, O, D, "in_transit"), !log("Shipment in transit");`, hint: 'product("widget", "Widget", 100, 10), stock("WH1", "widget", 50)' },
+  iot: { source: `constraints device/3, sensor/3, alert/3, actuator/2, reading/3;
+functions is_critical/1, is_online/1, temperature/1, humidity/1, motion/1;
+actions log/1;
+import host builtins;
+
+device(X, T, S) <=> eq(S, "offline") | !log("Device offline");
+sensor(X, T, V) <=> lt(V, 0) | !log("Invalid sensor value");
+alert(X, T, L) <=> eq(L, "info") | !log("Info alert");
+actuator(X, S) <=> eq(S, "idle") | !log("Idle actuator");
+reading(X, T, V) <=> lt(V, -50) | !log("Extreme reading");
+device(X, T, S) <=> is_online(S) | !log("Online device");
+sensor(X, T, V) <=> is_critical(V) | !log("Critical sensor reading");
+device(X, T, S), sensor(X, T, V) ==> is_online(S) | !log("Online sensor");
+sensor(X, T, V), reading(X, T, V) ==> temperature(V) | !log("Temperature reading");
+alert(X, T, L), device(X, T, S) ==> eq(L, "warning") | !log("Device warning");
+actuator(X, S), device(X, T, S) ==> eq(S, "active") | !log("Actuator active");
+reading(X, T, V) ==> humidity(V) | !log("Humidity reading");
+device(X, T, S) ==> motion(S) | !log("Motion detected");
+sensor(X, T, V) ==> eq(V, "normal") | !log("Normal sensor");
+device(X, T, S) \\ sensor(X, T, V) <=> is_online(S) | device(X, T, S), !log("Online sensor device");
+sensor(X, T, V) \\ reading(X, T, V) <=> temperature(V) | sensor(X, T, V), !log("Temperature sensor reading");
+alert(X, T, L) \\ actuator(X, S) <=> eq(L, "critical") | alert(X, T, L), !log("Alert triggered");
+reading(X, T, V) \\ reading(X, T, V) <=> gt(V, 0) | reading(X, T, V), !log("Reading active");
+device(X, T, S) \\ device(X, T, S) <=> is_online(S) | device(X, T, S), !log("Device status verified");
+actuator(X, S) \\ actuator(X, S) <=> eq(S, "active") | actuator(X, S), !log("Actuator active");`, hint: 'sensor("sensor1", "temperature", 72), device("sensor1", "thermometer", "online")' },
+  library: { source: `constraints book/3, member/3, loan/3, reservation/2, fine/2;
+functions is_overdue/1, is_reserved/1, category/1, popularity/1, late_fee/1;
+actions log/1;
+import host builtins;
+
+book(X, T, A) <=> eq(A, "lost") | !log("Book lost");
+member(X, N, S) <=> eq(S, "blocked") | !log("Member blocked");
+loan(X, B, D) <=> lt(D, 0) | !log("Invalid loan date");
+reservation(X, B) <=> eq(B, "cancelled") | !log("Reservation cancelled");
+fine(X, A) <=> lt(A, 0) | !log("Invalid fine");
+book(X, T, A) <=> is_reserved(A) | !log("Book reserved");
+loan(X, B, D) <=> is_overdue(D) | !log("Overdue loan");
+member(X, N, S), loan(X, B, D) ==> eq(S, "active") | loan(X, B, D), !log("Active member loan");
+book(X, T, A), loan(X, B, D) ==> category(T) | !log("Book category noted");
+loan(X, B, D), fine(X, F) ==> late_fee(F) | fine(X, add(F, 5)), !log("Late fee added");
+reservation(X, B) ==> eq(B, "ready") | !log("Reservation ready");
+member(X, N, S) ==> eq(S, "active") | !log("Active member");
+book(X, T, A) ==> popularity(T) | !log("Popular book");
+fine(X, A) ==> eq(A, "paid") | !log("Fine paid");
+book(X, T, A) \\ loan(X, B, D) <=> is_reserved(A) | book(X, T, A), !log("Reserved book loaned");
+member(X, N, S) \\ reservation(X, B) <=> eq(S, "active") | member(X, N, S), !log("Member reservation");
+loan(X, B, D) \\ fine(X, F) <=> is_overdue(D) | fine(X, F), !log("Fine for overdue");
+reservation(X, B) \\ reservation(X, B) <=> eq(B, "active") | reservation(X, B), !log("Reservation active");
+book(X, T, A) \\ book(X, T, A) <=> eq(A, "available") | book(X, T, A), !log("Book available");
+loan(X, B, D) \\ loan(X, B, D) <=> gt(D, 0) | loan(X, B, D), !log("Loan validated");`, hint: 'book("ISBN123", "The CHR Guide", "available"), member("Alice", "Alice Smith", "active")' },
+  logistics: { source: `constraints route/3, delivery/4, vehicle/3, package/3, driver/2;
+functions is_express/1, eta/2, is_valid/1, capacity/1, distance/2;
+actions log/1;
+import host builtins;
+
+route(X, O, D) <=> eq(O, D) | !log("Same origin destination");
+delivery(X, P, D, S) <=> eq(S, "cancelled") | !log("Cancelled delivery");
+vehicle(X, T, C) <=> lt(C, 0) | !log("Negative capacity");
+package(X, W, F) <=> lt(W, 0) | !log("Negative weight");
+driver(X, L) <=> eq(L, "unavailable") | !log("Unavailable driver");
+route(X, O, D) <=> is_express(O) | !log("Express route");
+delivery(X, P, D, S) <=> is_valid(S) | !log("Valid delivery");
+vehicle(X, T, C), package(X, W, F) ==> capacity(C) | !log("Capacity checked");
+route(X, O, D), vehicle(X, T, C) ==> distance(O, D) | !log("Distance computed");
+delivery(X, P, D, S), driver(X, L) ==> is_express(S) | !log("Express delivery");
+driver(X, L) ==> eq(L, "available") | !log("Available driver");
+package(X, W, F) ==> lt(W, 50) | !log("Light package");
+vehicle(X, T, C) ==> gt(C, 1000) | !log("Heavy duty vehicle");
+route(X, O, D) ==> eta(O, D) | !log("ETA computed");
+delivery(X, P, D, S) \\ vehicle(X, T, C) <=> eq(S, "dispatched") | delivery(X, P, D, S), !log("Delivery dispatched");
+package(X, W, F) \\ driver(X, L) <=> eq(L, "available") | package(X, W, F), !log("Package assigned");
+route(X, O, D) \\ route(X, O, D) <=> distance(O, D) | route(X, O, D), !log("Route validated");
+delivery(X, P, D, S) \\ delivery(X, P, D, S) <=> eq(S, "in_transit") | delivery(X, P, D, "in_transit"), !log("Delivery in transit");
+vehicle(X, T, C) \\ vehicle(X, T, C) <=> gt(C, 0) | vehicle(X, T, C), !log("Vehicle validated");
+driver(X, L) \\ driver(X, L) <=> eq(L, "active") | driver(X, L), !log("Driver active");`, hint: 'package("PKG001", "NYC", "LAX"), truck("Truck-1", "NYC")' },
+  music: { source: `constraints song/3, playlist/3, artist/2, album/3, listener/2;
+functions is_hit/1, duration/2, genre/1, bpm/1, likes/1;
+actions log/1;
+import host builtins;
+
+song(X, T, D) <=> lt(D, 30) | !log("Short song");
+playlist(X, N, S) <=> eq(S, "private") | !log("Private playlist");
+artist(X, G) <=> eq(G, "unknown") | !log("Unknown genre");
+album(X, T, Y) <=> lt(Y, 1900) | !log("Old album");
+listener(X, S) <=> eq(S, "inactive") | !log("Inactive listener");
+song(X, T, D) <=> is_hit(T) | !log("Hit song");
+playlist(X, N, S) <=> gt(S, 0) | !log("Songs in playlist");
+song(X, T, D), playlist(X, N, S) ==> duration(T, D) | !log("Playlist duration");
+artist(X, G), song(X, T, D) ==> genre(G) | !log("Genre noted");
+album(X, T, Y), artist(X, G) ==> bpm(T) | !log("BPM noted");
+listener(X, S), playlist(X, N, S) ==> likes(S) | !log("Liked playlist");
+playlist(X, N, S) ==> eq(S, "public") | !log("Public playlist");
+song(X, T, D) ==> bpm(T) | !log("Song BPM");
+album(X, T, Y) ==> gt(Y, 2000) | !log("Modern album");
+playlist(X, N, S) \\ song(X, T, D) <=> is_hit(T) | playlist(X, N, add(S, 1)), !log("Hit added");
+artist(X, G) \\ album(X, T, Y) <=> genre(G) | artist(X, G), !log("Genre verified");
+listener(X, S) \\ playlist(X, N, S) <=> eq(S, "public") | listener(X, S), !log("Listener joined");
+song(X, T, D) \\ song(X, T, D) <=> gt(D, 0) | song(X, T, D), !log("Song validated");
+playlist(X, N, S) \\ playlist(X, N, S) <=> gt(S, 0) | playlist(X, N, S), !log("Playlist active");
+album(X, T, Y) \\ album(X, T, Y) <=> gt(Y, 0) | album(X, T, Y), !log("Album year set");`, hint: 'note("C4", 60, 100), scale("major")' },
+  smarthome: { source: `constraints device/3, light/2, thermostat/2, scene/2, sensor_reading/3;
+functions is_on/1, target_temp/1, is_night/1, is_occupied/1, brightness/1;
+actions log/1;
+import host builtins;
+
+device(X, T, S) <=> eq(S, "offline") | !log("Device offline");
+light(X, B) <=> lt(B, 0) | !log("Invalid brightness");
+thermostat(X, T) <=> lt(T, 10) | !log("Too cold");
+scene(X, A) <=> eq(A, "inactive") | !log("Inactive scene");
+sensor_reading(X, T, V) <=> lt(V, 0) | !log("Invalid reading");
+device(X, T, S) <=> is_on(S) | !log("Device on");
+thermostat(X, T) <=> target_temp(T) | !log("Target temp set");
+light(X, B), scene(X, A) ==> is_night(A) | light(X, 20), !log("Night light dimmed");
+thermostat(X, T), sensor_reading(X, T, V) ==> is_occupied(V) | thermostat(X, 70), !log("Occupied temp");
+scene(X, A), device(X, T, S) ==> eq(A, "away") | device(X, T, "off"), !log("Away scene activated");
+sensor_reading(X, T, V) ==> brightness(V) | !log("Brightness reading");
+device(X, T, S) ==> eq(S, "on") | !log("Device state on");
+light(X, B) ==> gt(B, 80) | !log("Bright light");
+thermostat(X, T) ==> gt(T, 85) | !log("Hot temp");
+device(X, T, S) \\ light(X, B) <=> is_on(S) | device(X, T, S), !log("Light controlled");
+thermostat(X, T) \\ sensor_reading(X, T, V) <=> target_temp(T) | thermostat(X, T), !log("Temp reading");
+scene(X, A) \\ device(X, T, S) <=> eq(A, "movie") | scene(X, A), !log("Movie scene");
+sensor_reading(X, T, V) \\ sensor_reading(X, T, V) <=> gt(V, 0) | sensor_reading(X, T, V), !log("Sensor validated");
+device(X, T, S) \\ device(X, T, S) <=> is_on(S) | device(X, T, S), !log("Device validated");
+light(X, B) \\ light(X, B) <=> gt(B, 0) | light(X, B), !log("Light validated");`, hint: 'device("light-1", "light", "on"), light("light-1", 80)' },
+  social: { source: `constraints user/3, post/3, comment/3, like/2, friend/2;
+functions is_viral/1, is_popular/1, length/1, is_recent/1, count/1;
+actions log/1;
+import host builtins;
+
+user(X, N, A) <=> eq(A, "banned") | !log("Banned user");
+post(X, U, T) <=> lt(T, 0) | !log("Invalid timestamp");
+comment(X, P, T) <=> eq(T, "spam") | !log("Spam comment");
+like(X, P) <=> eq(P, "removed") | !log("Like removed");
+friend(X, Y) <=> eq(Y, "blocked") | !log("Blocked friend");
+post(X, U, T) <=> is_recent(T) | !log("Recent post");
+comment(X, P, T) <=> is_popular(P) | !log("Popular comment");
+post(X, U, T), like(X, L) ==> is_viral(L) | post(X, U, "viral"), !log("Viral post");
+comment(X, P, T), user(X, U, A) ==> is_recent(T) | !log("Recent comment");
+friend(X, Y), user(X, U, A) ==> count(Y) | !log("Friend count noted");
+like(X, P) ==> eq(P, "active") | !log("Active like");
+user(X, N, A) ==> eq(A, "active") | !log("Active user");
+post(X, U, T) ==> length(U) | !log("Post length");
+comment(X, P, T) ==> is_popular(P) | !log("Comment popular");
+post(X, U, T) \\ like(X, L) <=> is_viral(L) | post(X, U, T), !log("Post viral status");
+user(X, N, A) \\ friend(X, Y) <=> eq(Y, "active") | user(X, N, A), !log("Friend verified");
+comment(X, P, T) \\ post(X, U, T) <=> is_recent(T) | comment(X, P, T), !log("Comment recent");
+like(X, P) \\ like(X, P) <=> eq(P, "active") | like(X, P), !log("Like active");
+user(X, N, A) \\ user(X, N, A) <=> eq(A, "active") | user(X, N, A), !log("User active");
+post(X, U, T) \\ post(X, U, T) <=> gt(T, 0) | post(X, U, T), !log("Post validated");`, hint: 'user("Alice", "Alice Smith", "active"), friend("Alice", "Bob")' },
+  sports: { source: `constraints team/3, player/3, game/4, score/3, injury/2;
+functions is_winning/1, is_injured/1, position/1, is_home/1, pts/1;
+actions log/1;
+import host builtins;
+
+team(X, N, S) <=> eq(S, "inactive") | !log("Inactive team");
+player(X, N, P) <=> eq(P, "bench") | !log("Bench player");
+game(X, H, A, S) <=> eq(S, "postponed") | !log("Postponed game");
+score(X, P, S) <=> lt(S, 0) | !log("Negative score");
+injury(X, P) <=> eq(P, "recovered") | !log("Recovered injury");
+team(X, N, S) <=> is_home(S) | !log("Home team");
+game(X, H, A, S) <=> is_winning(S) | !log("Winning game");
+game(X, H, A, S), team(X, H, S1), team(X, A, S2) ==> is_home(S1) | game(X, H, A, "home_win"), !log("Home win");
+score(X, P, S), player(X, P, Pos) ==> position(Pos) | !log("Player position noted");
+player(X, N, P), injury(X, I) ==> is_injured(I) | player(X, N, "injured"), !log("Player injured");
+game(X, H, A, S) ==> pts(S) | !log("Game points tallied");
+team(X, N, S) ==> eq(S, "winning") | !log("Team winning");
+score(X, P, S) ==> gt(S, 100) | !log("High score");
+injury(X, P) ==> is_injured(P) | !log("Injury status");
+team(X, N, S) \\ player(X, N, P) <=> eq(P, "starter") | team(X, N, S), !log("Starter assigned");
+game(X, H, A, S) \\ score(X, H, Sh) <=> eq(Sh, "winning") | game(X, H, A, "final"), !log("Game finalized");
+player(X, N, P) \\ injury(X, I) <=> is_injured(I) | player(X, N, P), !log("Injury checked");
+score(X, P, S) \\ score(X, P, S) <=> gt(S, 0) | score(X, P, S), !log("Score active");
+team(X, N, S) \\ team(X, N, S) <=> eq(S, "active") | team(X, N, S), !log("Team active");
+game(X, H, A, S) \\ game(X, H, A, S) <=> eq(S, "scheduled") | game(X, H, A, "scheduled"), !log("Game scheduled");`, hint: 'team("LAL", "Lakers", "active"), player("LeBron", "Lakers", "forward")' },
+  supplychain: { source: `constraints supplier/3, product/4, order/3, shipment/4, warehouse/2;
+functions is_backordered/1, is_oversupplied/1, is_fragile/1, demand/1, lead_time/2;
+actions log/1;
+import host builtins;
+
+supplier(X, L, R) <=> eq(R, "inactive") | !log("Inactive supplier");
+product(X, N, C, S) <=> eq(S, "discontinued") | !log("Discontinued product");
+order(X, C, S) <=> eq(S, "cancelled") | !log("Cancelled order");
+shipment(X, O, D, S) <=> eq(S, "lost") | !log("Lost shipment");
+warehouse(X, C) <=> eq(C, "closed") | !log("Closed warehouse");
+supplier(X, L, R) <=> is_oversupplied(L) | !log("Oversupplied");
+product(X, N, C, S) <=> is_fragile(C) | !log("Fragile product");
+supplier(X, L, R), order(X, C, S) ==> demand(C) | !log("Demand noted");
+product(X, N, C, S), shipment(X, O, D, S) ==> lead_time(O, D) | !log("Lead time");
+warehouse(X, C), shipment(X, O, D, S) ==> is_backordered(S) | !log("Backordered");
+order(X, C, S) ==> eq(S, "awaiting") | !log("Awaiting order");
+shipment(X, O, D, S) ==> eq(S, "shipped") | !log("Shipped");
+warehouse(X, C) ==> eq(C, "active") | !log("Active warehouse");
+supplier(X, L, R) ==> eq(R, "active") | !log("Active supplier");
+order(X, C, S) \\ product(X, N, C, S) <=> demand(C) | order(X, C, S), !log("Order demand");
+shipment(X, O, D, S) \\ warehouse(X, C) <=> eq(C, "active") | shipment(X, O, D, S), !log("Warehouse shipment");
+product(X, N, C, S) \\ supplier(X, L, R) <=> is_fragile(C) | product(X, N, C, S), !log("Fragile from supplier");
+order(X, C, S) \\ order(X, C, S) <=> eq(S, "processing") | order(X, C, "processing"), !log("Order processing");
+shipment(X, O, D, S) \\ shipment(X, O, D, S) <=> eq(S, "in_transit") | shipment(X, O, D, "in_transit"), !log("Shipment in transit");
+warehouse(X, C) \\ warehouse(X, C) <=> eq(C, "active") | warehouse(X, C), !log("Warehouse validated");`, hint: 'order("ORD-1", "Widget", 100), supplier("Acme", "Acme Corp", "active")' },
+  travel: { source: `constraints booking/4, flight/5, hotel/3, passenger/2, itinerary/2;
+functions duration/2, is_available/1, price/2, bookable/1, is_peak/1;
+actions log/1;
+import host builtins;
+
+booking(X, F, H, S) <=> eq(S, "cancelled") | !log("Booking cancelled");
+flight(X, O, D, Dep, Arr) <=> eq(O, D) | !log("Same origin dest");
+hotel(X, N, A) <=> lt(A, 1) | !log("No availability");
+passenger(X, T) <=> eq(T, "unknown") | !log("Unknown tier");
+itinerary(X, I) <=> eq(I, "empty") | !log("Empty itinerary");
+flight(X, O, D, Dep, Arr) <=> is_peak(Dep) | !log("Peak flight");
+hotel(X, N, A) <=> is_available(A) | !log("Hotel available");
+booking(X, F, H, S), flight(X, O, D, Dep, Arr) ==> duration(Dep, Arr) | !log("Flight duration noted");
+booking(X, F, H, S), hotel(X, N, A) ==> eq(A, A) | booking(X, F, H, "priced"), !log("Pricing applied");
+passenger(X, T), booking(X, F, H, S) ==> is_peak(T) | !log("Peak passenger");
+hotel(X, N, A) ==> bookable(A) | !log("Bookable hotel");
+flight(X, O, D, Dep, Arr) ==> eq(O, "NYC") | !log("NYC flight");
+passenger(X, T) ==> eq(T, "vip") | !log("VIP passenger");
+itinerary(X, I) ==> eq(I, "ready") | !log("Itinerary ready");
+booking(X, F, H, S) \\ flight(X, O, D, Dep, Arr) <=> eq(S, "confirmed") | booking(X, F, H, S), !log("Booking confirmed");
+hotel(X, N, A) \\ passenger(X, T) <=> is_available(A) | hotel(X, N, A), !log("Hotel verified");
+flight(X, O, D, Dep, Arr) \\ itinerary(X, I) <=> duration(Dep, Arr) | flight(X, O, D, Dep, Arr), !log("Flight in itinerary");
+passenger(X, T) \\ passenger(X, T) <=> eq(T, "confirmed") | passenger(X, T), !log("Passenger confirmed");
+booking(X, F, H, S) \\ booking(X, F, H, S) <=> eq(S, "active") | booking(X, F, H, "active"), !log("Booking active");
+itinerary(X, I) \\ itinerary(X, I) <=> eq(I, "complete") | itinerary(X, I), !log("Itinerary complete");`, hint: 'flight("AA100", "JFK", "LAX", "2024-01-15", "2024-01-15"), booking("Bob", "AA100", "H123", "confirmed")' },
+  weather: { source: `constraints station/5, alert/3, advisory/3, forecast/4, reading/3;
+functions temp_f/1, is_severe/1, humidity/1, wind_speed/1, uv_index/1;
+actions log/1;
+import host builtins;
+
+station(X, N, La, Lo, E) <=> lt(E, 0) | !log("Invalid elevation");
+alert(X, T, L) <=> eq(L, "info") | !log("Info alert");
+advisory(X, T, M) <=> eq(M, "none") | !log("No advisory");
+forecast(X, D, H, L) <=> gt(L, H) | !log("Low higher than high");
+reading(X, T, V) <=> lt(V, -100) | !log("Invalid reading");
+station(X, N, La, Lo, E) <=> lt(E, 0) | !log("Below sea level");
+alert(X, T, L) <=> is_severe(L) | !log("Severe alert");
+forecast(X, D, H, L), alert(X, T, L) ==> is_severe(L) | alert(X, T, "severe"), !log("Severe forecast alert");
+reading(X, T, V), station(X, N, La, Lo, E) ==> temp_f(V) | !log("Temp reading");
+forecast(X, D, H, L), advisory(X, T, M) ==> humidity(H) | advisory(X, "humidity", "high"), !log("Humidity advisory");
+alert(X, T, L) ==> eq(L, "warning") | !log("Warning alert");
+advisory(X, T, M) ==> eq(T, "heat") | !log("Heat advisory");
+forecast(X, D, H, L) ==> wind_speed(H) | !log("Wind forecast");
+reading(X, T, V) ==> uv_index(V) | !log("UV reading");
+station(X, N, La, Lo, E) \\ reading(X, T, V) <=> temp_f(V) | station(X, N, La, Lo, E), !log("Station reading");
+forecast(X, D, H, L) \\ advisory(X, T, M) <=> is_severe(L) | forecast(X, D, H, L), !log("Forecast advisory");
+alert(X, T, L) \\ reading(X, T, V) <=> wind_speed(V) | alert(X, T, "wind"), !log("Wind alert");
+advisory(X, T, M) \\ advisory(X, T, M) <=> eq(M, "active") | advisory(X, T, "active"), !log("Advisory active");
+forecast(X, D, H, L) \\ forecast(X, D, H, L) <=> gt(H, L) | forecast(X, D, H, L), !log("Forecast validated");
+reading(X, T, V) \\ reading(X, T, V) <=> gt(V, -100) | reading(X, T, V), !log("Reading validated");`, hint: 'station("LHR", "London Station", 51, 0, 100), alert("LHR", "storm", "warning")' },
+};
+
+// ============================================================
+// Load example
+// ============================================================
+function loadExample(name) {
+  if (!name) return;
+  const example = EXAMPLES[name];
+  if (!example) {
+    displayError(new Error('Example not found: ' + name));
+    return;
+  }
+  editor.value = example.source;
+  localStorage.setItem('chrts-editor', editor.value);
+  lineCount.textContent = example.source.split('\n').length + ' lines';
+  constraintInput.value = example.hint ?? '';
+  if (autoRunToggle.checked) {
+    runEngine();
+  }
+}
+
+exampleSelect.addEventListener('change', () => {
+  loadExample(exampleSelect.value);
+  exampleSelect.value = '';
+});
+
+// ============================================================
+// Escape HTML
+// ============================================================
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ============================================================
+// Resize panels
+// ============================================================
+const leftPanel = document.getElementById('leftPanel');
+const resizeHandle = document.getElementById('resizeHandle');
+let isResizing = false;
+
+resizeHandle.addEventListener('mousedown', (e) => {
+  isResizing = true;
+  resizeHandle.classList.add('active');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isResizing) return;
+  const pct = (e.clientX / window.innerWidth) * 100;
+  const clamped = Math.max(20, Math.min(80, pct));
+  leftPanel.style.width = clamped + '%';
+});
+
+document.addEventListener('mouseup', () => {
+  if (isResizing) {
+    isResizing = false;
+    resizeHandle.classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+});
+
+// ============================================================
+// Events
+// ============================================================
+runBtn.addEventListener('click', () => runEngine());
+clearBtn.addEventListener('click', clearAll);
+
+assertResetBtn.addEventListener('click', async () => {
+  // Re-run everything from scratch
+  await runEngine();
+});
+
+// Auto-run on editor change
+let autoRunTimer = null;
+editor.addEventListener('input', () => {
+  if (autoRunToggle.checked) {
+    clearTimeout(autoRunTimer);
+    autoRunTimer = setTimeout(() => runEngine(), 500);
+  }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  // Ctrl+Enter or Cmd+Enter to run
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    runEngine();
+  }
+  // Escape to clear
+  if (e.key === 'Escape') {
+    clearAll();
+  }
+});
+
+// ============================================================
+// Initial state
+// ============================================================
+setStatus('empty', 'Write CHR rules and click Run, or load an example.');
+editor.dispatchEvent(new Event('input'));
+
+// ============================================================
+// Auto-run on page load (if there's content)
+// ============================================================
+document.addEventListener('DOMContentLoaded', async () => {
+  if (editor.value.trim()) {
+    if (autoRunToggle.checked) {
+      await runEngine();
+    }
+  }
+});
+</script>
+</body>
+</html>
+

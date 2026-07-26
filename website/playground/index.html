@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CHR.ts Playground</title>
+  <link rel="stylesheet" href="/public/css/vendor/codemirror/codemirror.min.css" />
+  <link rel="stylesheet" href="/public/css/vendor/codemirror/theme/monokai.min.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header class="header">
+  <div class="logo"><a href="https://github.com/lambdaft/chr.ts" target="_blank">CHR.ts Playground</a></div>
+  <div class="controls">
+    <select id="examples">
+      <option value="">Examples</option>
+      <option value="propagate">Propagation</option>
+      <option value="banking">Banking</option>
+    </select>
+    <button id="compile-btn" class="btn btn-outline">Compile</button>
+  </div>
+</header>
+
+<main class="playground">
+  <div class="pane source-pane">
+    <div class="pane-header">
+      <span>CHR Rules</span>
+      <label class="switch">
+        <input type="checkbox" id="autocompile" checked />
+        <span class="slider" title="Live compilation"></span>
+      </label>
+    </div>
+    <textarea id="source-editor"></textarea>
+  </div>
+
+  <div class="pane actions-pane">
+    <div class="pane-header">
+      <span>Host Module (TypeScript/JS)</span>
+    </div>
+    <textarea id="host-editor" class="host-editor" spellcheck="false" placeholder='return { functions: { print: (ctx, x) => console.log(x) } }'></textarea>
+
+    <div class="pane-header" style="margin-top: 1rem;">
+      <span>Add Constraints</span>
+    </div>
+    <div class="input-row">
+      <input type="text" id="constraint-input" placeholder='e.g. number(42)' />
+      <button id="add-btn" class="btn btn-primary">Add</button>
+    </div>
+    <div id="error-box" class="error-box hidden"></div>
+
+    <div class="pane-header" style="margin-top: 1rem;">
+      <span>Constraint Store</span>
+      <button id="clear-btn" class="btn btn-secondary">Clear</button>
+    </div>
+    <table class="store-table">
+      <thead>
+        <tr><th>ID</th><th>Constraint</th><th></th></tr>
+      </thead>
+      <tbody id="store-body">
+        <tr id="store-empty"><td colspan="2">(empty)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="pane-header" style="margin-top: 1rem;">
+      <span>Trace Log</span>
+      <button id="clear-trace-btn" class="btn btn-secondary">Clear</button>
+    </div>
+    <div id="trace-log" class="trace-log"></div>
+  </div>
+</main>
+
+<script src="/public/js/vendor/codemirror/codemirror.min.js"></script>
+<script src="/public/js/vendor/codemirror/mode/javascript/javascript.js"></script>
+<script src="/public/js/vendor/codemirror/addon/edit/matchbrackets.js"></script>
+<script src="/public/js/vendor/codemirror/addon/selection/active-line.js"></script>
+<script src="/playground.js"></script>
+</body>
+</html>

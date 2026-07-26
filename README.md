@@ -31,6 +31,7 @@ It does **not** carry forward the most fragile parts of the original CHR.js impl
 - Validation (dry-run), source-span error diagnostics, error cause chaining
 - Engine snapshots, convenience loader (`createEngine`), file loader (`load`)
 - No runtime dependencies; uses Node.js built-in `node:test` runner
+- **Built-in web playground IDE** (`npm run website`) with live compilation, constraint store inspection, rule-fire trace log, and host module editing
 
 ## Quick Start
 
@@ -300,7 +301,31 @@ npm install
 npm run build
 npm test
 npm run typecheck
+npm run website
 ```
+
+## Playground IDE
+
+Run `npm run website` to start the built-in web IDE at `http://localhost:4173`. The playground provides:
+
+- Live CHR rule compilation with automatic error reporting
+- Constraint store inspector with add/remove
+- Host module editor for custom functions and actions
+- Rule-fire trace log showing matched constraints, variable bindings, and timing
+- Built-in examples (propagation, simpagation, host modules)
+- Dark-themed CodeMirror editor
+
+The playground runs the actual CHR.ts engine on the server via a JSON API:
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/compile` | POST | Compile CHR source + optional host module |
+| `/api/assert` | POST | Assert a constraint and run fixpoint |
+| `/api/clear` | POST | Reset engine |
+| `/api/examples` | GET | List bundled example programs |
+
+Source: `website/playground/`
+
 
 ## Project Status
 

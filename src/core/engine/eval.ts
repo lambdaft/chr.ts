@@ -1,3 +1,34 @@
+/**
+ * Expression evaluator for CHR guards and rule bodies.
+ *
+ * `evaluateExpression` recursively walks an `Expression` AST and produces a
+ * JavaScript value. It is the execution backend for all expression evaluation
+ * in the engine: guard checks, body argument evaluation, and `let` binding
+ * right-hand sides.
+ *
+ * Evaluation rules:
+ * - `literal`: return the literal value directly.
+ * - `array`: recursively evaluate each element and return the resulting array.
+ * - `variable`: look up the variable name in the `bindings` map. Throws
+ *   `CHRExecutionError` if the variable is unbound (this should never happen
+ *   if the engine's variable scoping validation is correct).
+ * - `unary`: evaluate the operand, then apply `!` (logical NOT) or `-` (negation).
+ * - `binary`: evaluate left and right operands, then dispatch to `evaluateBinary`.
+ * - `call`: look up the host function by name, evaluate all arguments, then
+ *   call the host function with the engine context.
+ *
+ * Error handling:
+ * - Host function errors are wrapped in `CHRExecutionError` (for body expressions)
+ *   or `CHRGuardError` (for guard expressions). `CHRGuardError` is special:
+ *     it is caught by `engine.ts:evaluateGuards` and treated as a guard
+ *     failure rather than a fatal engine error.
+ * - Timeout support: if `hostFunctionTimeout` is set, host function calls
+ *   are wrapped in `Promise.race` with a timer that rejects after the timeout.
+ *
+ * Dependencies are injected via the `EvalDeps` interface to avoid circular
+ * imports between `engine.ts` and `eval.ts`.
+ */
+
 import type { Expression, RuleNode } from '../ast.js'
 import type { ConstraintRecord } from '../constraint.js'
 import { CHRExecutionError, CHRGuardError } from '../errors.js'
@@ -5,6 +36,13 @@ import { evaluateBinary } from '../utils.js'
 import type { ConstraintStore } from '../store.js'
 import type { CHREngine } from '../engine.js'
 
+/**
+ * Dependencies injected by the engine into the evaluator.
+ *
+ * This interface exists to break the circular dependency between `engine.ts`
+ * and `eval.ts`. The engine constructs an `EvalDeps` object at evaluation
+ * time and passes it to `evaluateExpression`.
+ */
 interface EvalDeps {
   readonly functions: Map<string, (ctx: unknown, ...args: unknown[]) => unknown | Promise<unknown>>
   readonly hostFunctionTimeout: number | undefined
@@ -19,6 +57,18 @@ interface EvalDeps {
   suggestSimilar(name: string, registry: Map<string, unknown>): string
 }
 
+/**
+ * Recursively evaluate a CHR expression to a JavaScript value.
+ *
+ * @param deps - Injected engine dependencies.
+ * @param expr - The expression AST to evaluate.
+ * @param rule - The rule being evaluated (for error context).
+ * @param matched - The matched constraint records (for host context).
+ * @param bindings - Current variable bindings from head matching.
+ * @returns The evaluated value.
+ * @throws {CHRExecutionError} On evaluation errors (or wrapped host errors).
+ * @throws {CHRGuardError} If `deps.isGuard` is true and a host function fails.
+ */
 export async function evaluateExpression (
   deps: EvalDeps,
   expr: Expression,
@@ -102,6 +152,12 @@ export async function evaluateExpression (
   }
 }
 
+/**
+ * Call a host function with the engine context and evaluated arguments.
+ *
+ * The context object passed to the host function is constructed from
+ * `deps` and the current rule firing state.
+ */
 async function callHostFunction (
   deps: EvalDeps,
   fn: (ctx: unknown, ...args: unknown[]) => unknown | Promise<unknown>,
@@ -126,6 +182,15 @@ async function callHostFunction (
   return withTimeout(deps, result, name, rule)
 }
 
+/**
+ * Wrap a host function call in an optional timeout.
+ *
+ * If `hostFunctionTimeout` is set and the result is a Promise, the call is
+ * wrapped in `Promise.race` with a timer that rejects after the timeout
+ * duration. Synchronous results pass through unchanged.
+ *
+ * @throws {Error} If the host function times out.
+ */
 export async function withTimeout<T> (
   deps: EvalDeps,
   promise: T | Promise<T>,

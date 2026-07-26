@@ -558,6 +558,7 @@ All tests use Node.js built-in test runner (`node:test` + `node:assert/strict`).
 | `unification.test.mjs` | ~18 | Basic variable sharing, multi-step chaining, literal heads, failure cases, propagation history, guards with unified bindings, anonymous `_` with unification, strict vs unify coexistence, programmatic RuleNode, engine diagnostics, body actions |
 | `domain-interop.test.mjs` | 5 | Full 5-rule pipelines: finance, healthcare, logistics, education, cybersecurity |
 | `realm-of-rules/game.test.mjs` | ~12 | 250-rule game engine: resource production, building construction, army training/combat, happiness/population, research/technology, diplomacy, full game scenario, store diagnostics, history tracking |
+| `playground.test.mjs` | ~30 | Web IDE: Express server, JSON API contract, compile/assert/clear/examples endpoints, parse error propagation, host module registration, trace collection, static asset serving, CORS-safe JSON |
 
 ---
 
