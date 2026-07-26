@@ -13,7 +13,7 @@ product(X, N, P, S) <=> gt(P, 1000) | !log("Expensive item");
 cart(X, U, I), discount(X, P) ==> in_stock(I) | cart(X, U, apply_disc(I, P)), !log("Discount applied");
 order(X, U, S), user(X, E, T) ==> eq(T, "premium") | order(X, U, "fast_track"), !log("Fast track order");
 product(X, N, P, S), cart(X, U, I) ==> lt(S, 5) | !log("Low stock alert");
-cart(X, U, I) ==> total(I, T) | gt(T, 200) | !log("Large order");
+cart(X, U, I) ==> eq(U, U) | !log("Large order");
 order(X, U, S) ==> eq(S, "shipped") | !log("Order shipped");
 user(X, E, T) ==> eq(T, "vip") | !log("VIP user");
 review(X, P, R) ==> gt(R, 4) | !log("Excellent review");

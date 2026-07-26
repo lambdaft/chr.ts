@@ -11,7 +11,7 @@ itinerary(X, I) <=> eq(I, "empty") | !log("Empty itinerary");
 flight(X, O, D, Dep, Arr) <=> is_peak(Dep) | !log("Peak flight");
 hotel(X, N, A) <=> is_available(A) | !log("Hotel available");
 booking(X, F, H, S), flight(X, O, D, Dep, Arr) ==> duration(Dep, Arr) | !log("Flight duration noted");
-booking(X, F, H, S), hotel(X, N, A) ==> price(H, P) | booking(X, F, H, "priced"), !log("Pricing applied");
+booking(X, F, H, S), hotel(X, N, A) ==> eq(A, A) | booking(X, F, H, "priced"), !log("Pricing applied");
 passenger(X, T), booking(X, F, H, S) ==> is_peak(T) | !log("Peak passenger");
 hotel(X, N, A) ==> bookable(A) | !log("Bookable hotel");
 flight(X, O, D, Dep, Arr) ==> eq(O, "NYC") | !log("NYC flight");

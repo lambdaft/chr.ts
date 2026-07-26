@@ -16,7 +16,7 @@ training(X, C), employee(X, N, D, R) ==> is_mandatory(C) | !log("Mandatory train
 promotion(X, E) ==> eligible(E) | !log("Eligible for promotion");
 leave(X, E, T) ==> eq(T, "vacation") | !log("Vacation leave");
 training(X, C) ==> credit(X, 5) | !log("Training credits earned");
-review(X, E, S) ==> duration(D, S) | !log("Review duration");
+review(X, E, S) ==> eq(S, S) | !log("Review duration");
 employee(X, N, D, R) \ review(X, E, S) <=> gt(S, 3) | employee(X, N, D, R), !log("Review completed");
 promotion(X, E) \ employee(X, N, D, R) <=> is_senior(D) | promotion(X, E), !log("Promotion approved");
 leave(X, E, T) \ employee(X, N, D, R) <=> eq(T, "sick") | leave(X, E, T), !log("Sick leave recorded");

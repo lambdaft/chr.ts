@@ -12,7 +12,7 @@ table(X, S) <=> is_available(S) | !log("Table available");
 order(X, I, S) <=> is_vegan(I) | !log("Vegan order");
 reservation(X, T, N), table(X, S) ==> eq(S, "free") | reservation(X, T, N), !log("Reservation confirmed");
 order(X, I, S), menu_item(X, N, P) ==> total(I, P) | bill(X, P), !log("Bill item added");
-bill(X, A), order(X, I, S) ==> tip(A, T) | bill(X, add(A, T)), !log("Tip added");
+bill(X, A), order(X, I, S) ==> gt(A, 0) | bill(X, add(A, 10)), !log("Tip added");
 menu_item(X, N, P) ==> gt(P, 50) | !log("Premium item");
 table(X, S) ==> is_busy(S) | !log("Busy table");
 reservation(X, T, N) ==> eq(N, "walkin") | !log("Walk-in reservation");

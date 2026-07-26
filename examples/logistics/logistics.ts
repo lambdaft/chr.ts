@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, 'logistics.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, '..', 'logistics.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
