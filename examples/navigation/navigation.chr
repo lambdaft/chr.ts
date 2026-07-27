@@ -1,0 +1,29 @@
+constraints vessel/4, route/5, waypoint/4, zone/4, collision/3, alert/3, clearance/3, port/4, speed/3, eta/3;
+functions during/3, before/2, meets/2, overlaps/3, starts/2, ends/2, contains/2, abuts/2, after/2;
+actions log/1, warn/1;
+
+import host builtins;
+
+rule_name @ vessel(VesselId, Position, Time, Speed) <=> during(Time, 8, 18) | !log("Vessel in port hours"), tracked(VesselId, Position);
+rule_name @ vessel(VesselId, Position, Time, Speed) <=> !during(Time, 8, 18) | !log("Vessel outside port hours"), flagged(VesselId, "outside_hours");
+
+rule_name @ route(VesselId, RouteId, StartTime, EndTime, Destination), vessel(VesselId, Position, Time, Speed) <=> starts(StartTime, Time) | !log("Route starts at vessel time"), navigating(VesselId, RouteId);
+rule_name @ route(VesselId, RouteId, StartTime, EndTime, Destination), vessel(VesselId, Position, Time, Speed) <=> ends(EndTime, Time) | !log("Route ends at vessel time"), arrived(VesselId, Destination);
+
+rule_name @ waypoint(WaypointId, VesselId, WpTime, Position), route(VesselId, RouteId, StartTime, EndTime, Destination) <=> during(WpTime, StartTime, EndTime) | !log("Waypoint during route"), on_route(VesselId, WaypointId);
+rule_name @ waypoint(WaypointId, VesselId, WpTime, Position), route(VesselId, RouteId, StartTime, EndTime, Destination) <=> overlaps(WpTime, StartTime, EndTime) | !log("Waypoint overlaps route"), deviated(VesselId, WaypointId);
+
+rule_name @ zone(ZoneId, StartTime, EndTime, Restricted), vessel(VesselId, Position, Time, Speed) <=> contains(StartTime, Time) | !log("Vessel in restricted zone"), in_zone(VesselId, ZoneId);
+rule_name @ zone(ZoneId, StartTime, EndTime, Restricted), vessel(VesselId, Position, Time, Speed) <=> during(Time, StartTime, EndTime) | !log("Vessel during zone time"), monitored(VesselId, ZoneId);
+
+rule_name @ collision(Vessel1, Vessel2, CollisionTime), vessel(Vessel1, Pos1, Time1, Speed1), vessel(Vessel2, Pos2, Time2, Speed2) <=> meets(CollisionTime, Time1) | !log("Collision at first vessel time"), incident(Vessel1, Vessel2);
+rule_name @ collision(Vessel1, Vessel2, CollisionTime), vessel(Vessel1, Pos1, Time1, Speed1), vessel(Vessel2, Pos2, Time2, Speed2) <=> meets(CollisionTime, Time2) | !log("Collision at second vessel time"), incident(Vessel1, Vessel2);
+
+rule_name @ alert(VesselId, AlertTime, Severity), zone(ZoneId, StartTime, EndTime, Restricted) <=> abuts(AlertTime, StartTime) | !log("Alert abuts zone entry"), alerted(VesselId, Severity);
+rule_name @ alert(VesselId, AlertTime, Severity), vessel(VesselId, Position, Time, Speed) <=> before(AlertTime, Time) | !log("Alert before vessel time"), pre_alert(VesselId);
+
+rule_name @ clearance(VesselId, ClearTime, Authority), alert(VesselId, AlertTime, Severity) <=> after(ClearTime, AlertTime) | !log("Clearance after alert"), cleared(VesselId, Authority);
+rule_name @ port(PortId, OpenTime, CloseTime, Location), vessel(VesselId, Position, Time, Speed) <=> meets(Time, OpenTime) | !log("Vessel at port open"), docking(VesselId, PortId);
+
+rule_name @ speed(VesselId, SpeedTime, Speed), route(VesselId, RouteId, StartTime, EndTime, Destination) <=> during(SpeedTime, StartTime, EndTime) | !log("Speed during route"), speed_checked(VesselId, Speed);
+rule_name @ eta(VesselId, EtaTime, Destination), route(VesselId, RouteId, StartTime, EndTime, Dest) <=> ends(EtaTime, EndTime) | !log("ETA at route end"), expected(VesselId, EtaTime);

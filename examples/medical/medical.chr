@@ -1,0 +1,27 @@
+constraints appointment/4, medication/4, treatment/4, diagnosis/3, test/3, prescription/3, admission/3, discharge/2, followUp/3, alert/3;
+functions during/3, before/2, meets/2, overlaps/3, starts/2, ends/2, contains/2, abuts/2, after/2;
+actions log/1, notify/1;
+
+import host builtins;
+
+rule_name @ appointment(Patient, Doctor, StartTime, EndTime) <=> before(StartTime, EndTime) | !log("Valid appointment"), scheduled(Patient, Doctor, StartTime);
+rule_name @ appointment(Patient, Doctor, StartTime, EndTime) <=> !before(StartTime, EndTime) | !log("Invalid appointment"), flagged(Patient, "invalid_time");
+
+rule_name @ medication(Patient, Drug, StartTime, EndTime), appointment(Patient, Doctor, ApptStart, ApptEnd) <=> during(StartTime, ApptStart, ApptEnd) | !log("Medication during appointment"), med_given(Patient, Drug);
+rule_name @ medication(Patient, Drug, StartTime, EndTime), appointment(Patient, Doctor, ApptStart, ApptEnd) <=> !during(StartTime, ApptStart, ApptEnd) | !log("Medication outside appointment"), med_skipped(Patient, Drug);
+
+rule_name @ treatment(TreatmentId, Patient, StartTime, EndTime), diagnosis(Patient, DxTime, Condition) <=> after(StartTime, DxTime) | !log("Treatment after diagnosis"), started(TreatmentId);
+rule_name @ treatment(TreatmentId, Patient, StartTime, EndTime), diagnosis(Patient, DxTime, Condition) <=> meets(StartTime, DxTime) | !log("Treatment at diagnosis time"), immediate(TreatmentId);
+
+rule_name @ test(TestId, Patient, TestTime), treatment(TreatmentId, Patient, TreatStart, TreatEnd) <=> during(TestTime, TreatStart, TreatEnd) | !log("Test during treatment"), tested(TestId, TreatmentId);
+rule_name @ test(TestId, Patient, TestTime), treatment(TreatmentId, Patient, TreatStart, TreatEnd) <=> overlaps(TestTime, TreatStart, TreatEnd) | !log("Test overlaps treatment"), monitored(TestId);
+
+rule_name @ prescription(Patient, Drug, RxTime), medication(Patient, Drug, MedStart, MedEnd) <=> starts(RxTime, MedStart) | !log("Prescription starts medication"), prescribed(Patient, Drug);
+rule_name @ prescription(Patient, Drug, RxTime), medication(Patient, Drug, MedStart, MedEnd) <=> ends(RxTime, MedEnd) | !log("Prescription ends medication"), completed(Patient, Drug);
+
+rule_name @ admission(Patient, AdmitTime, Ward), diagnosis(Patient, DxTime, Condition) <=> after(AdmitTime, DxTime) | !log("Admission after diagnosis"), admitted(Patient, Ward);
+rule_name @ discharge(Patient, DischargeTime), admission(Patient, AdmitTime, Ward) <=> after(DischargeTime, AdmitTime) | !log("Discharge after admission"), discharged(Patient);
+rule_name @ followUp(Patient, FollowUpTime, Doctor), discharge(Patient, DischargeTime) <=> after(FollowUpTime, DischargeTime) | !log("Follow-up after discharge"), scheduled_followup(Patient, FollowUpTime);
+
+rule_name @ alert(Patient, AlertTime, Severity), medication(Patient, Drug, MedStart, MedEnd) <=> contains(MedStart, AlertTime) | !log("Alert during medication period"), alerted(Patient, Severity);
+rule_name @ alert(Patient, AlertTime, Severity), test(TestId, Patient, TestTime) <=> abuts(AlertTime, TestTime) | !log("Alert abuts test time"), reviewed(Patient, AlertTime);

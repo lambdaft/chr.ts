@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'banking.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, '..', 'collusion.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
@@ -27,8 +27,8 @@ async function main (): Promise<void> {
       after: (_ctx: unknown, time1: unknown, time2: unknown) => Number(time1) > Number(time2) ? 1 : 0
     },
     actions: {
-      log: ({ args }: { args: unknown[] }) => console.log("[banking]", args[0] ?? "", args[1] ?? ""),
-      flag: ({ args }: { args: unknown[] }) => console.log("[FLAG]", args[0] ?? "", args[1] ?? "")
+      log: ({ args }: { args: unknown[] }) => console.log("[collusion]", args[0] ?? "", args[1] ?? ""),
+      alert: ({ args }: { args: unknown[] }) => console.log("[ALERT]", args[0] ?? "", args[1] ?? "")
     }
   })
 
@@ -37,10 +37,16 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: "account", args: ['ACC1', 'checking', 1000] },
-    { name: "transaction", args: ['TX1', 'ACC1', 10, 'deposit'] },
-    { name: "statement", args: ['ACC1', 1, 30, 1000] },
-    { name: "hold", args: ['HOLD1', 'ACC1', 15, 20] }
+    { name: "auction", args: ['AUC1', 10, 20, 'painting'] },
+    { name: "bid", args: ['BIDDER1', 'AUC1', 12, 100] },
+    { name: "bid", args: ['BIDDER2', 'AUC1', 15, 150] },
+    { name: "watch", args: ['WATCH1', 'AUC1', 11] },
+    { name: "suspicious", args: ['BIDDER1', 'AUC1', 13] },
+    { name: "collusion", args: ['BIDDER1', 'BIDDER2', 'AUC1', 16] },
+    { name: "report", args: ['RPT1', 10, 20] },
+    { name: "investigation", args: ['INV1', 'BIDDER1', 17] },
+    { name: "flag", args: ['BIDDER1', 14, 'suspicious_pattern'] },
+    { name: "clearance", args: ['BIDDER1', 19] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))

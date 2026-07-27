@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main (): Promise<void> {
   const engine = new CHREngine()
-  const source = readFileSync(join(__dirname, '..', 'banking.chr'), 'utf8')
+  const source = readFileSync(join(__dirname, '..', 'navigation.chr'), 'utf8')
 
   const host = defineHostModule({
     functions: {
@@ -27,8 +27,8 @@ async function main (): Promise<void> {
       after: (_ctx: unknown, time1: unknown, time2: unknown) => Number(time1) > Number(time2) ? 1 : 0
     },
     actions: {
-      log: ({ args }: { args: unknown[] }) => console.log("[banking]", args[0] ?? "", args[1] ?? ""),
-      flag: ({ args }: { args: unknown[] }) => console.log("[FLAG]", args[0] ?? "", args[1] ?? "")
+      log: ({ args }: { args: unknown[] }) => console.log("[navigation]", args[0] ?? "", args[1] ?? ""),
+      warn: ({ args }: { args: unknown[] }) => console.log("[WARN]", args[0] ?? "", args[1] ?? "")
     }
   })
 
@@ -37,10 +37,16 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: "account", args: ['ACC1', 'checking', 1000] },
-    { name: "transaction", args: ['TX1', 'ACC1', 10, 'deposit'] },
-    { name: "statement", args: ['ACC1', 1, 30, 1000] },
-    { name: "hold", args: ['HOLD1', 'ACC1', 15, 20] }
+    { name: "vessel", args: ['VES1', 'POS1', 10, 20] },
+    { name: "route", args: ['VES1', 'RTE1', 10, 20, 'PORT_A'] },
+    { name: "waypoint", args: ['WP1', 'VES1', 12, 'POS2'] },
+    { name: "zone", args: ['ZONE1', 10, 20, 'restricted'] },
+    { name: "port", args: ['PORT1', 9, 18, 'LOC1'] },
+    { name: "speed", args: ['VES1', 12, 15] },
+    { name: "eta", args: ['VES1', 20, 'PORT_A'] },
+    { name: "alert", args: ['VES1', 10, 'high'] },
+    { name: "clearance", args: ['VES1', 11, 'COASTGUARD'] },
+    { name: "collision", args: ['VES1', 'VES2', 14] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))

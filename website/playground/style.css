@@ -286,3 +286,4 @@ input:checked + .slider:before { transform: translateX(14px); }
 .cm-chr-simpagation { color: #d29922; font-weight: 600; }
 .cm-chr-action { color: #ffa657; }
 .cm-chr-declaration { color: #7ee787; }
+.cm-chr-comment { color: #6e7681; font-style: italic; }

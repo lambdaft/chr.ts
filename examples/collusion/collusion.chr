@@ -1,0 +1,29 @@
+constraints bid/4, auction/4, watch/3, bidPattern/4, suspicious/3, collusion/4, report/3, investigation/3, flag/3, clearance/2;
+functions during/3, before/2, meets/2, overlaps/3, starts/2, ends/2, contains/2, abuts/2, after/2;
+actions log/1, alert/1;
+
+import host builtins;
+
+rule_name @ bid(Bidder, Auction, BidTime, Amount) <=> during(BidTime, 10, 20) | !log("Bid during auction"), valid_bid(Bidder, Auction, BidTime);
+rule_name @ bid(Bidder, Auction, BidTime, Amount) <=> !during(BidTime, 10, 20) | !log("Bid outside auction"), invalid(Bidder, Auction);
+
+rule_name @ watch(Watcher, Auction, WatchTime), bid(Bidder, Auction, BidTime, Amount) <=> before(WatchTime, BidTime) | !log("Watch before bid"), monitored(Watcher, Bidder);
+rule_name @ watch(Watcher, Auction, WatchTime), bid(Bidder, Auction, BidTime, Amount) <=> meets(WatchTime, BidTime) | !log("Watch at bid time"), suspicious(Bidder, Auction, WatchTime);
+
+rule_name @ bidPattern(Bidder, Auction, PatternStart, PatternEnd), bid(Bidder, Auction, BidTime, Amount) <=> during(BidTime, PatternStart, PatternEnd) | !log("Bid in pattern window"), patterned(Bidder, Auction);
+rule_name @ bidPattern(Bidder, Auction, PatternStart, PatternEnd), bid(Bidder, Auction, BidTime, Amount) <=> overlaps(BidTime, PatternStart, PatternEnd) | !log("Bid overlaps pattern"), flagged(Bidder, Auction);
+
+rule_name @ suspicious(Bidder, Auction, SuspicionTime), bid(Bidder, Auction, BidTime, Amount) <=> starts(SuspicionTime, BidTime) | !log("Suspicion starts at bid"), under_review(Bidder, Auction);
+rule_name @ suspicious(Bidder, Auction, SuspicionTime), bid(Bidder, Auction, BidTime, Amount) <=> ends(SuspicionTime, BidTime) | !log("Suspicion ends at bid"), reviewed(Bidder, Auction);
+
+rule_name @ collusion(Bidder1, Bidder2, Auction, CollusionStart), bid(Bidder1, Auction, BidTime1, Amount1), bid(Bidder2, Auction, BidTime2, Amount2) <=> after(CollusionStart, BidTime1) | !log("Collusion after first bid"), investigating(Bidder1, Bidder2);
+rule_name @ collusion(Bidder1, Bidder2, Auction, CollusionStart), bid(Bidder1, Auction, BidTime1, Amount1), bid(Bidder2, Auction, BidTime2, Amount2) <=> after(CollusionStart, BidTime2) | !log("Collusion after second bid"), investigating(Bidder1, Bidder2);
+
+rule_name @ report(ReportId, StartTime, EndTime), auction(AuctionId, AuctionStart, AuctionEnd, Item) <=> contains(StartTime, AuctionStart) | !log("Report contains auction start"), covering(ReportId, AuctionId);
+rule_name @ report(ReportId, StartTime, EndTime), bid(Bidder, Auction, BidTime, Amount) <=> contains(EndTime, BidTime) | !log("Report contains bid end"), recorded(ReportId, BidTime);
+
+rule_name @ investigation(InvId, Bidder, StartTime), suspicious(Bidder, Auction, SuspicionTime) <=> after(StartTime, SuspicionTime) | !log("Investigation after suspicion"), ongoing(InvId, Bidder);
+rule_name @ investigation(InvId, Bidder, StartTime), suspicious(Bidder, Auction, SuspicionTime) <=> meets(StartTime, SuspicionTime) | !log("Investigation at suspicion"), immediate(InvId, Bidder);
+
+rule_name @ flag(Bidder, FlagTime, Reason), bid(Bidder, Auction, BidTime, Amount) <=> abuts(FlagTime, BidTime) | !log("Flag abuts bid"), flagged(Bidder, Reason);
+rule_name @ clearance(Bidder, ClearTime), flag(Bidder, FlagTime, Reason) <=> after(ClearTime, FlagTime) | !log("Clearance after flag"), cleared(Bidder);

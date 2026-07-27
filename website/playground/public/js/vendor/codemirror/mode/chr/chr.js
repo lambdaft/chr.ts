@@ -8,6 +8,12 @@ CodeMirror.defineMode('chr', function (config) {
     token: function (stream, state) {
       var ch = stream.peek()
 
+      if (ch === '#' || ch === '-') {
+        if (stream.match(/^(#|--).*/, true)) {
+          return 'chr-comment'
+        }
+      }
+
       if (/[a-zA-Z_$]/.test(ch)) {
         if (stream.match(/[a-zA-Z_$][a-zA-Z0-9_$]*\s*\/\s*[0-9]+/, true)) {
           return 'chr-declaration'

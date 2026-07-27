@@ -1,25 +1,25 @@
-constraints account/3, transaction/3, loan/3, payment/2;
-functions balance/2, eligible/1, overdrawn/1, interest/2;
-actions log/1;
+constraints transaction/4, hold/4, statement/4, account/3, deposit/2, withdrawal/2, fee/3, interest/3, auditTrail/4, balanceCheck/3;
+functions during/3, before/2, meets/2, overlaps/3, starts/2, ends/2, contains/2, abuts/2, after/2;
+actions log/1, flag/1;
+
 import host builtins;
 
-loan(X, C, A) <=> lt(A, 0) | loan(X, C, 0), !log("Loan cleared");
-account(X, O, B) <=> lt(B, 0) | account(X, O, 0), !log("Account cleared");
-transaction(X, T, D) <=> eq(D, "unknown") | !log("Unknown transaction");
-loan(X, C, A) <=> gte(A, 5000) | !log("Large loan");
-account(X, O, B) <=> gt(B, 50000) | !log("Premium account");
-transaction(X, T, D) <=> !log("Processed");
-loan(X, C, A), account(X, C, B) <=> gte(B, A) | !log("Loan fully covered");
-transaction(X, T, D), account(X, O, B) ==> eq(D, "deposit") | account(X, O, add(B, 100));
-transaction(X, T, D), account(X, O, B) ==> eq(D, "withdraw"), gte(B, 50) | account(X, O, sub(B, 50));
-account(X, O, B), loan(X, O, A) ==> gte(B, A) | !log("Loan covered by balance");
-loan(X, C, A) ==> eq(A, 0) | !log("Loan fully paid");
-transaction(X, T, D) ==> eq(D, "transfer") | !log("Transfer initiated");
-account(X, O, B) ==> lt(B, 100) | !log("Low balance");
-payment(X, P), account(X, O, B) ==> gt(P, B) | !log("Payment exceeds balance");
-loan(X, C, A) ==> eligible(A) | !log("Loan is eligible");
-account(X, O, B) \ transaction(X, T, "deposit") <=> eq(T, "deposit") | account(X, O, add(B, 100));
-account(X, O, B) \ transaction(X, T, "withdraw") <=> eq(T, "withdraw"), gte(B, 50) | account(X, O, sub(B, 50));
-loan(X, C, A) \ payment(X, P) <=> eq(P, "full") | loan(X, C, 0), !log("Loan paid off");
-account(X, O, B) \ fee(X, F) <=> gte(B, F) | account(X, O, sub(B, F)), !log("Fee paid");
-account(X, O, B) \ account(X, O, B) <=> gte(B, 0) | account(X, O, B), !log("Account validated");
+rule_name @ transaction(TxId, Account, Time, Type) <=> during(Time, 9, 17) | !log("Transaction during business hours"), valid(TxId);
+rule_name @ transaction(TxId, Account, Time, Type) <=> !during(Time, 9, 17) | !log("Transaction outside hours"), flagged(TxId, "after_hours");
+
+rule_name @ hold(HoldId, Account, StartTime, EndTime), transaction(TxId, Account, TxTime, Type) <=> contains(StartTime, TxTime) | !log("Transaction during hold"), held(TxId, HoldId);
+rule_name @ hold(HoldId, Account, StartTime, EndTime), transaction(TxId, Account, TxTime, Type) <=> !contains(StartTime, TxTime) | !log("Transaction outside hold"), processed(TxId);
+
+rule_name @ statement(Account, StmtStart, StmtEnd, Balance), transaction(TxId, Account, TxTime, Type) <=> during(TxTime, StmtStart, StmtEnd) | !log("Transaction in statement period"), statemented(TxId, Account);
+rule_name @ statement(Account, StmtStart, StmtEnd, Balance), transaction(TxId, Account, TxTime, Type) <=> overlaps(TxTime, StmtStart, StmtEnd) | !log("Transaction overlaps statement"), adjusted(Account, StmtEnd);
+
+rule_name @ deposit(Account, Amount), account(Account, Type, MinBalance) <=> gt(Amount, 0) | !log("Deposit accepted"), deposited(Account, Amount);
+rule_name @ withdrawal(Account, Amount), account(Account, Type, Balance) <=> lte(Amount, Balance) | !log("Withdrawal accepted"), withdrawn(Account, Amount);
+rule_name @ withdrawal(Account, Amount), account(Account, Type, Balance) <=> gt(Amount, Balance) | !log("Insufficient funds"), flagged(Account, "overdraft");
+
+rule_name @ fee(Account, FeeTime, Amount), account(Account, Type, Balance) <=> meets(FeeTime, Balance) | !log("Fee applied at balance check"), fee_applied(Account, Amount);
+rule_name @ interest(Account, IntTime, Rate), statement(Account, StmtStart, StmtEnd, Balance) <=> starts(IntTime, StmtStart) | !log("Interest at statement start"), interest_applied(Account, Rate);
+
+rule_name @ transaction(TxId, Account, Time, Type), account(Account, Type, Balance) <=> ends(Time, Balance) | !log("Transaction ends at balance"), balanced(Account);
+rule_name @ transaction(TxId, Account, Time, Type), transaction(TxId2, Account, Time2, Type2) <=> after(Time, Time2) | !log("Later transaction"), sequenced(TxId, TxId2);
+rule_name @ hold(HoldId, Account, StartTime, EndTime), statement(Account, StmtStart, StmtEnd, Balance) <=> abuts(StartTime, StmtStart) | !log("Hold abuts statement"), reviewed(HoldId);

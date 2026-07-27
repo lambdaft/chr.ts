@@ -11,14 +11,24 @@ async function main (): Promise<void> {
 
   const host = defineHostModule({
     functions: {
-      value: (ctx, ...args) => 0,
-      is_risky: (ctx, ...args) => 0,
-      returns: (ctx, ...args) => 0,
-      liquid: (ctx, ...args) => 0,
-      appreciates: (ctx, ...args) => 0
+      during: (_ctx: unknown, time: unknown, start: unknown, end: unknown) => Number(time) >= Number(start) && Number(time) <= Number(end) ? 1 : 0,
+      before: (_ctx: unknown, time: unknown, cutoff: unknown) => Number(time) < Number(cutoff) ? 1 : 0,
+      meets: (_ctx: unknown, time1: unknown, time2: unknown) => Number(time1) === Number(time2) ? 1 : 0,
+      overlaps: (_ctx: unknown, time: unknown, start: unknown, end: unknown) => {
+        const t = Number(time)
+        const s = Number(start)
+        const e = Number(end)
+        return t > s && t < e ? 1 : 0
+      },
+      starts: (_ctx: unknown, time: unknown, start: unknown) => Number(time) === Number(start) ? 1 : 0,
+      ends: (_ctx: unknown, time: unknown, end: unknown) => Number(time) === Number(end) ? 1 : 0,
+      contains: (_ctx: unknown, container: unknown, contained: unknown) => Number(contained) >= Number(container) ? 1 : 0,
+      abuts: (_ctx: unknown, time1: unknown, time2: unknown) => Number(time1) + 1 === Number(time2) || Number(time2) + 1 === Number(time1) ? 1 : 0,
+      after: (_ctx: unknown, time1: unknown, time2: unknown) => Number(time1) > Number(time2) ? 1 : 0
     },
     actions: {
-      log: ({ args }) => console.log("[finance]", args[0] ?? "")
+      log: ({ args }: { args: unknown[] }) => console.log("[finance]", args[0] ?? "", args[1] ?? ""),
+      alert: ({ args }: { args: unknown[] }) => console.log("[ALERT]", args[0] ?? "", args[1] ?? "")
     }
   })
 
@@ -27,7 +37,12 @@ async function main (): Promise<void> {
   engine.addRules(source)
 
   await engine.assertMany([
-    { name: "portfolio", args: ['id1', 'id1', 'id1'] }
+    { name: "marketSession", args: ['SESSION1', 9, 17] },
+    { name: "order", args: ['ORD1', 'AAPL', 10, 'buy'] },
+    { name: "order", args: ['ORD2', 'AAPL', 18, 'sell'] },
+    { name: "trade", args: ['TRD1', 'AAPL', 10, 150] },
+    { name: "settlement", args: ['SET1', 'TRD1', 11] },
+    { name: "cutoff", args: ['CUT1', 16] }
   ])
 
   console.log(JSON.stringify(engine.snapshot(), null, 2))
