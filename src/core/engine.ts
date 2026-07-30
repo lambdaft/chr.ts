@@ -1738,8 +1738,19 @@ export class CHREngine {
    * falls back to `Date.now()`. Errors in the callback are silently ignored
    * so that observability hooks cannot disrupt rule execution.
    */
+  private readonly ruleFiredListeners: Array<(trace: RuleFireTrace) => void> = []
+
+  /** Add a dynamic listener for rule execution telemetry. Returns an unsubscribe function. */
+  addRuleFiredListener (callback: (trace: RuleFireTrace) => void): () => void {
+    this.ruleFiredListeners.push(callback)
+    return () => {
+      const idx = this.ruleFiredListeners.indexOf(callback)
+      if (idx !== -1) this.ruleFiredListeners.splice(idx, 1)
+    }
+  }
+
   private onRuleFiredWithTiming (rule: RuleNode, ruleName: string, ids: number[], match: MatchResult, startTime: number): void {
-    if (!this.onRuleFired) return
+    if (!this.onRuleFired && this.ruleFiredListeners.length === 0) return
     const trace: RuleFireTrace = {
       ruleName,
       kind: rule.kind,
@@ -1754,11 +1765,15 @@ export class CHREngine {
     const endTraceTime = typeof performance !== 'undefined' ? performance.now() : Date.now()
     trace.durationMs = endTraceTime - startTime
     try {
-      this.onRuleFired(trace)
+      this.onRuleFired?.(trace)
+      for (const listener of this.ruleFiredListeners) {
+        listener(trace)
+      }
     } catch {
       // ignore trace callback errors
     }
   }
+
 
   // -------------------------------------------------------------------------
   // Utility: fuzzy name matching

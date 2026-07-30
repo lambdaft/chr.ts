@@ -32,6 +32,10 @@ It does **not** carry forward the most fragile parts of the original CHR.js impl
 - Engine snapshots, convenience loader (`createEngine`), file loader (`load`)
 - No runtime dependencies; uses Node.js built-in `node:test` runner
 - **Built-in web playground IDE** (`npm run website`) with live compilation, constraint store inspection, rule-fire trace log, and host module editing
+- **NeoWave Performance & Telemetry Extensions (Added July 2026)**:
+  - `store.lookupByArg(name, arity, argIndex, value)`: Fast $O(1)$ candidate constraint lookups by argument value (e.g. sequence Id indexing)
+  - `engine.addRuleFiredListener(callback)`: Dynamic rule execution telemetry and audit tracing hook
+
 
 ## Quick Start
 

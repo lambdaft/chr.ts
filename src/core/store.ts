@@ -250,6 +250,15 @@ export class ConstraintStore {
   }
 
   /**
+   * Fast O(1) candidate lookup of constraints by functor and specific argument value.
+   */
+  lookupByArg (name: string, arity: number, argIndex: number, value: unknown): ConstraintRecord[] {
+    const candidates = this.lookup(name, arity)
+    return candidates.filter((rec) => rec.args[argIndex] === value)
+  }
+
+
+  /**
    * Mark the store as invalid and clear all data.
    *
    * Similar to `clear()` but sets `_invalid = true`. The engine uses this
