@@ -11,8 +11,7 @@
     "test": "npm run build && node --test test/**/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf dist",
-    "prepare": "npm run build",
-    "website": "npm run build && tsx website/playground/src/server.ts"
+    "prepare": "npm run build"
   },
   "keywords": [
     "chr",
@@ -51,5 +50,8 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "temporal.ts": "file:../temporal.ts"
   }
 }
