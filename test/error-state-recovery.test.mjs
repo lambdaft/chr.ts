@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { CHREngine, CHRExecutionError } from '../dist/index.js'
 
 test('engine rejects addRule during running', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.addRules('loop @ a ==> b;')
   engine.addRules('loop2 @ b ==> a;')
 
@@ -20,7 +20,7 @@ test('engine rejects addRule during running', async () => {
 })
 
 test('engine rejects addRules during running', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.addRules('loop @ a ==> b;')
   engine.addRules('loop2 @ b ==> a;')
 
@@ -37,7 +37,7 @@ test('engine rejects addRules during running', async () => {
 })
 
 test('engine rejects addProgram during running', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.addRules('loop @ a ==> b;')
   engine.addRules('loop2 @ b ==> a;')
 
@@ -177,7 +177,7 @@ test('error state after action throw preserves cause', async () => {
 test('error state from async host function timeout in guard', async () => {
   const engine = new CHREngine({ hostFunctionTimeout: 50 })
   engine.registerFunction('hang', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 10000))
+    await new Promise((resolve) => setTimeout(resolve, 300))
     return true
   })
   engine.addRules('hang @ a() ==> hang() | ok;')

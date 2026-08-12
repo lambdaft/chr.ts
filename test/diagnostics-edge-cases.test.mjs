@@ -163,7 +163,7 @@ test('async host function error produces cause chain', async () => {
 test('host function timeout produces error without cause', async () => {
   const engine = new CHREngine({ hostFunctionTimeout: 50 })
   engine.registerFunction('hang', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 10000))
+    await new Promise((resolve) => setTimeout(resolve, 300))
     return true
   })
   engine.addRules('hang @ a(X) ==> hang() | ok;')

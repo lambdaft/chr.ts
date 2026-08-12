@@ -31,7 +31,7 @@
  * from string + offset to AST nodes. Multiple calls can run in parallel.
  */
 
-import {
+import type {
   BinaryExpression,
   BodyAction,
   BodyConstraint,
@@ -1165,7 +1165,13 @@ function tokenize (source: string): Token[] {
  * parentheses/brackets.
  */
 class ExpressionParser {
-  constructor (private readonly tokens: Token[], private index = 0) {}
+  private readonly tokens: Token[]
+  private index: number
+
+  constructor (tokens: Token[], index = 0) {
+    this.tokens = tokens
+    this.index = index
+  }
 
   /**
    * Parse a complete expression and verify EOF.

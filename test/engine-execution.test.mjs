@@ -172,13 +172,13 @@ test('addRules processes action declarations', () => {
   assert.equal(engine.getRules().length, 1)
 })
 
-test('declareConstraint sets arity', () => {
+test('declareConstraint sets arity', async () => {
   const engine = new CHREngine()
   engine.declareConstraint('gold', 1)
   engine.declareConstraints({ silver: 2, bronze: 1 })
 
-  assert.throws(() => {
-    engine.assert('gold', [1, 2])
+  await assert.rejects(async () => {
+    await engine.assert('gold', [1, 2])
   }, /arity/)
 })
 

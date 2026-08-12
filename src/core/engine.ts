@@ -27,7 +27,7 @@
  * be used from one async context at a time.
  */
 
-import {
+import type {
   BodyAction,
   BodyConstraint,
   BodyConstraintUpdate,
@@ -42,7 +42,7 @@ import {
   RuleNode
 } from './ast.js'
 import { BuiltinsModule } from './builtins.js'
-import { ConstraintRecord } from './constraint.js'
+import type { ConstraintRecord } from './constraint.js'
 import { CHRExecutionError, CHRParseError, CHRGuardError } from './errors.js'
 import { PropagationHistory } from './history.js'
 import { parseProgram } from './parser.js'

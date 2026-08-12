@@ -22,7 +22,7 @@
  * coupling the store to the engine.
  */
 
-import { ConstraintRecord, createConstraint, createFunctor } from './constraint.js'
+import { type ConstraintRecord, createConstraint, createFunctor } from './constraint.js'
 
 /**
  * A lightweight snapshot entry for serialization and debugging.

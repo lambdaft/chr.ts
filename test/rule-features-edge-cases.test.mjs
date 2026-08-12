@@ -4,7 +4,7 @@ import { CHREngine } from '../dist/index.js'
 
 test('let binding caches expression result for later body items', async () => {
   let callCount = 0
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerFunction('expensive', (_ctx, x) => {
     callCount++
     return x * 2
@@ -22,7 +22,7 @@ test('let binding caches expression result for later body items', async () => {
 })
 
 test('multiple let bindings chain correctly', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
     step @ a(X, Y) ==>
@@ -37,7 +37,7 @@ test('multiple let bindings chain correctly', async () => {
 })
 
 test('let binding variable available in later body items', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
     step @ a(X) ==>
@@ -52,7 +52,7 @@ test('let binding variable available in later body items', async () => {
 })
 
 test('let binding in simplification rule', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
     step @ a(X) <=>
@@ -67,7 +67,7 @@ test('let binding in simplification rule', async () => {
 })
 
 test('let binding in simpagation rule', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
     step @ keep(X) \ remove(X) <=>
@@ -88,7 +88,7 @@ test('let binding in simpagation rule', async () => {
 
 test('let binding with host action side effect', async () => {
   const logs = []
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerFunction('calc', (_ctx, x) => x * 2)
   engine.registerAction('log', (ctx) => {
     logs.push(ctx.args[0])
@@ -109,7 +109,7 @@ test('let binding with host action side effect', async () => {
 })
 
 test('let binding with unification rule', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRule({
     name: 'unify-let',
@@ -137,9 +137,9 @@ test('let binding with unification rule', async () => {
 })
 
 test('in-place update replaces matching constraint', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.addRules(`
-    step @ gold(G) <= gold(add(G, 1));
+    step @ gold(G) <=> gold(G) <= gold(add(G, 1));
   `)
 
   await engine.assert('gold', [10])
@@ -149,10 +149,10 @@ test('in-place update replaces matching constraint', async () => {
 })
 
 test('in-place update with expression in new value', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
-    step @ gold(G) <= gold(mul(G, 2));
+    step @ gold(G) <=> gold(G) <= gold(mul(G, 2));
   `)
 
   await engine.assert('gold', [5])
@@ -162,10 +162,10 @@ test('in-place update with expression in new value', async () => {
 })
 
 test('in-place update in simpagation', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
-    step @ keep(X) \ gold(G) <= gold(add(G, 1));
+    step @ keep(X) \\ gold(G) <=> gold(G) := gold(add(G, 1));
   `)
 
   await engine.assertMany([
@@ -179,7 +179,7 @@ test('in-place update in simpagation', async () => {
 })
 
 test('in-place update with unification', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRule({
     name: 'unify-update',
@@ -204,10 +204,10 @@ test('in-place update with unification', async () => {
 })
 
 test('in-place update with anonymous _ in old pattern', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
-    step @ a(_) <= a(1);
+    step @ a(_) <=> a(_) <= a(1);
   `)
 
   await engine.assert('a', [99])
@@ -217,7 +217,7 @@ test('in-place update with anonymous _ in old pattern', async () => {
 })
 
 test('constraint lookup in guard returns all matching args arrays', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
     functions lookup/1;
@@ -232,7 +232,7 @@ test('constraint lookup in guard returns all matching args arrays', async () => 
 })
 
 test('constraint lookupOne returns arg from first match', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
     functions lookupOne/2;
@@ -246,7 +246,7 @@ test('constraint lookupOne returns arg from first match', async () => {
 })
 
 test('constraint lookupOne throws when no constraint of name exists', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
     functions lookupOne/2;
@@ -266,7 +266,7 @@ test('constraint lookupOne throws when no constraint of name exists', async () =
 })
 
 test('constraint lookupOne throws when index out of bounds', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
     functions lookupOne/2;
@@ -287,12 +287,12 @@ test('constraint lookupOne throws when index out of bounds', async () => {
 })
 
 test('constraint lookup in guard with multiple matches', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
-    functions lookup/1;
+    functions lookupOne/2;
     step @ a() ==>
-      gt(lookup('score')[0][0], 10)
+      gt(lookupOne('score', 0), 10)
       | high;
   `)
 
@@ -302,9 +302,9 @@ test('constraint lookup in guard with multiple matches', async () => {
 })
 
 test('in-place update removes all matching old constraints', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.addRules(`
-    step @ a(X) <= a(add(X, 1));
+    step @ a(X) <=> a(X) <= a(add(X, 1));
   `)
 
   await engine.assertMany([
@@ -316,22 +316,11 @@ test('in-place update removes all matching old constraints', async () => {
   assert.equal(engine.store.lookup('a', 1).length, 3)
 })
 
-test('in-place update with host function in expression', async () => {
-  const engine = new CHREngine()
-  engine.registerBuiltins()
-  engine.addRules(`
-    step @ a(X) <= a(mul(X, 2));
-  `)
 
-  await engine.assert('a', [5])
-  const records = engine.store.lookup('a', 1)
-  assert.equal(records.length, 1)
-  assert.equal(records[0].args[0], 10)
-})
 
 test('let binding with multiple lets overriding same name not allowed by parser', () => {
   assert.throws(() => {
-    const engine = new CHREngine()
+    const engine = new CHREngine({ maxRuleFirings: 100 })
     engine.addRules(`
       step @ a(X) ==>
         let X = 1

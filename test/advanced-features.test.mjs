@@ -280,7 +280,7 @@ test('checkMatchingAndShadowing warns on dead binding', async () => {
 test('host function timeout prevents slow rule from firing', async () => {
   const engine = new CHREngine({ hostFunctionTimeout: 100 })
   engine.registerFunction('hang', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 10000))
+    await new Promise((resolve) => setTimeout(resolve, 300))
     return true
   })
   engine.addRules('hang @ a(X) ==> hang() | ok;')
@@ -319,7 +319,7 @@ test('store strict mode asserts invariants after remove', () => {
 test('host timeout works for slow hanging function via Promise', async () => {
   const engine = new CHREngine({ hostFunctionTimeout: 150 })
   engine.registerFunction('hangSync', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 5000))
+    await new Promise((resolve) => setTimeout(resolve, 300))
     return true
   })
   engine.addRules('wait @ a(X) ==> hangSync() | ok;')

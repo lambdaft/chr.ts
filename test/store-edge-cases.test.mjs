@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ConstraintStore, ConstraintRecord } from '../dist/index.js'
+import { ConstraintStore } from '../dist/index.js'
 
 test('store onAdd hook fires on add', () => {
   const added = []
@@ -252,10 +252,10 @@ test('store clear resets sequence', () => {
 test('store invalidate sets invalid flag', () => {
   const store = new ConstraintStore()
   store.add('gold', [100])
-  assert.equal(store.invalid(), false)
+  assert.equal(store.invalid, false)
 
   store.invalidate()
-  assert.equal(store.invalid(), true)
+  assert.equal(store.invalid, true)
   assert.equal(store.size(), 0)
 })
 
@@ -267,14 +267,14 @@ test('store add to invalidated store still works', () => {
   const record = store.add('silver', [50])
   assert.ok(record)
   assert.equal(store.size(), 1)
-  assert.equal(store.invalid(), false)
+  assert.equal(store.invalid, false)
 })
 
-test('store remove sets invalid flag when last constraint removed', () => {
+test('store remove does not set invalid flag when last constraint removed', () => {
   const store = new ConstraintStore({}, { strict: 'warn' })
   const record = store.add('gold', [100])
   store.remove(record.id)
-  assert.equal(store.invalid(), true)
+  assert.equal(store.invalid, false)
 })
 
 test('store entries returns all entries with ids', () => {

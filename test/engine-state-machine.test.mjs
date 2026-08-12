@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { CHREngine, CHRExecutionError } from '../dist/index.js'
 
 test('engine rejects addRule during running state', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.addRules('loop @ a ==> b;')
   engine.addRules('loop2 @ b ==> a;')
 
@@ -76,7 +76,7 @@ test('engine requires new instance after error state', async () => {
 })
 
 test('engine rejects assertMany during running state', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.addRules('loop @ a ==> b;')
   engine.addRules('loop2 @ b ==> a;')
 
@@ -108,7 +108,7 @@ test('engine validate does not mutate engine state', () => {
 })
 
 test('engine clear during running does not corrupt state', async () => {
-  const engine = new CHREngine()
+  const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.addRules('loop @ a ==> b;')
   engine.addRules('loop2 @ b ==> a;')
 
