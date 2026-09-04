@@ -45,6 +45,7 @@ import type {
   HostActionDeclaration,
   HostFunctionDeclaration,
   HostImportDeclaration,
+  ChrImportDeclaration,
   LiteralExpression,
   ProgramNode,
   RuleKind,
@@ -111,11 +112,12 @@ interface Token {
  */
 export function parseProgram (source: string): ProgramNode {
   if (!source.trim()) {
-    return { declarations: [], functionDeclarations: [], actionDeclarations: [], hostImports: [], rules: [] }
+    return { chrImports: [], declarations: [], functionDeclarations: [], actionDeclarations: [], hostImports: [], rules: [] }
   }
 
   source = stripComments(source)
 
+  const chrImports: ChrImportDeclaration[] = []
   const declarations: ConstraintDeclaration[] = []
   const functionDeclarations: HostFunctionDeclaration[] = []
   const actionDeclarations: HostActionDeclaration[] = []
@@ -134,6 +136,8 @@ export function parseProgram (source: string): ProgramNode {
       // Classify the statement by its leading keyword.
       if (isImportHostStatement(entry)) {
         hostImports.push(parseImportHostStatement(entry, source, statement.offset))
+      } else if (isImportChrStatement(entry)) {
+        chrImports.push(parseImportChrStatement(entry, source, statement.offset))
       } else if (isConstraintDeclarationStatement(entry)) {
         declarations.push(...parseDeclarationStatement(entry, source, statement.offset))
       } else if (isFunctionDeclarationStatement(entry)) {
@@ -154,7 +158,7 @@ export function parseProgram (source: string): ProgramNode {
     }
   }
 
-  return { declarations, functionDeclarations, actionDeclarations, hostImports, rules }
+  return { chrImports, declarations, functionDeclarations, actionDeclarations, hostImports, rules }
 }
 
 // ---------------------------------------------------------------------------
@@ -195,8 +199,15 @@ function isImportHostStatement (source: string): boolean {
   return source.startsWith('import host ')
 }
 
+/**
+ * Returns true if the statement is an import-chr statement.
+ */
+function isImportChrStatement (source: string): boolean {
+  return source.startsWith('import chr ') || source.startsWith('import "') || source.startsWith("import '")
+}
+
 // ---------------------------------------------------------------------------
-// Host import parsing
+// Host & CHR import parsing
 // ---------------------------------------------------------------------------
 
 /**
@@ -214,6 +225,30 @@ function parseImportHostStatement (source: string, fullSource: string, offset: n
     throw new CHRParseError(`Invalid host module name in import: ${name}`, createSpan(fullSource, offset, offset + source.length))
   }
   return { name, span: createSpan(fullSource, offset, offset + source.length) }
+}
+
+/**
+ * Parse an `import chr "path"` or `import "path"` statement.
+ */
+function parseImportChrStatement (source: string, fullSource: string, offset: number): ChrImportDeclaration {
+  let raw = source.startsWith('import chr ')
+    ? source.slice('import chr '.length).trim()
+    : source.slice('import '.length).trim()
+
+  if (!raw) {
+    throw new CHRParseError(`Import chr declaration is empty: ${source}`, createSpan(fullSource, offset, offset + source.length))
+  }
+
+  // Strip optional quotes
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    raw = raw.slice(1, -1).trim()
+  }
+
+  if (!raw) {
+    throw new CHRParseError(`Import chr path is empty in statement: ${source}`, createSpan(fullSource, offset, offset + source.length))
+  }
+
+  return { path: raw, span: createSpan(fullSource, offset, offset + source.length) }
 }
 
 // ---------------------------------------------------------------------------

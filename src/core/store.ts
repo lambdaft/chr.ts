@@ -237,6 +237,21 @@ export class ConstraintStore {
   }
 
   /**
+   * Lookup constraints matching a given name, arity, and a specific argument value at argIndex.
+   *
+   * @param name - Constraint functor name.
+   * @param arity - Constraint arity.
+   * @param argIndex - 0-based argument index to filter by.
+   * @param value - Expected argument value.
+   * @returns Array of matching `ConstraintRecord` objects.
+   */
+  lookupByArg (name: string, arity: number, argIndex: number, value: unknown): ConstraintRecord[] {
+    const candidates = this.lookup(name, arity)
+    if (argIndex < 0 || candidates.length === 0) return candidates
+    return candidates.filter((c) => c.args[argIndex] === value)
+  }
+
+  /**
    * Remove all constraints from the store and reset the ID counter.
    *
    * Does NOT fire `onRemove` hooks for individual entries (unlike repeated
@@ -247,14 +262,6 @@ export class ConstraintStore {
     this.byFunctor.clear()
     this.nextId = 1
     this._invalid = false
-  }
-
-  /**
-   * Fast O(1) candidate lookup of constraints by functor and specific argument value.
-   */
-  lookupByArg (name: string, arity: number, argIndex: number, value: unknown): ConstraintRecord[] {
-    const candidates = this.lookup(name, arity)
-    return candidates.filter((rec) => rec.args[argIndex] === value)
   }
 
 

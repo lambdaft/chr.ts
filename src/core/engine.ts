@@ -252,6 +252,12 @@ export class CHREngine {
   /** Registered host modules, keyed by module name. */
   private readonly hostModules = new Map<string, HostModule>()
 
+  /** Registered in-memory CHR rule modules, keyed by module name/path. */
+  private readonly chrModules = new Map<string, string | ProgramNode>()
+
+  /** Custom CHR module resolver hook. */
+  private chrModuleResolver?: (path: string) => string | ProgramNode | undefined
+
   /** Maximum rule firings per fixpoint (from constructor options). */
   private readonly maxRuleFirings: number
 
@@ -474,17 +480,76 @@ export class CHREngine {
   }
 
   /**
+   * Register an in-memory CHR module that can be imported by rules using `import chr "name"`.
+   *
+   * @param name - The identifier or filename of the module (e.g. `"pcrl_common.chr"`).
+   * @param sourceOrProgram - The `.chr` source text or pre-parsed `ProgramNode`.
+   */
+  registerChrModule (name: string, sourceOrProgram: string | ProgramNode): this {
+    this.chrModules.set(name, sourceOrProgram)
+    return this
+  }
+
+  /**
+   * Set a custom module resolver for CHR imports.
+   *
+   * @param resolver - Function that takes a module path/name and returns its source text or ProgramNode.
+   */
+  setChrModuleResolver (resolver: (path: string) => string | ProgramNode | undefined): this {
+    this.chrModuleResolver = resolver
+    return this
+  }
+
+  /**
    * Load a complete program from a `ProgramNode`.
    *
-   * Processes declarations, function/action declarations, host imports, and
+   * Processes CHR imports, declarations, function/action declarations, host imports, and
    * rules in order. After loading, validates host declarations and scans for
    * unused functions/actions, pushing warnings into the `warnings` array.
    *
    * @param program - The parsed AST to load.
+   * @param visitedImports - Internal set to prevent circular CHR import loops.
    * @throws {CHRExecutionError} If the engine is not `empty`.
    */
-  addProgram (program: ProgramNode): void {
+  addProgram (program: ProgramNode, visitedImports: Set<string> = new Set<string>()): void {
     this.ensureEmpty()
+
+    // Process CHR module imports first (recursively with cycle protection)
+    if (program.chrImports && program.chrImports.length > 0) {
+      for (const imprt of program.chrImports) {
+        const modulePath = imprt.path
+        if (visitedImports.has(modulePath)) {
+          continue // Already loaded / cycle prevention
+        }
+        visitedImports.add(modulePath)
+
+        let moduleSourceOrProgram = this.chrModules.get(modulePath)
+        if (!moduleSourceOrProgram && this.chrModuleResolver) {
+          moduleSourceOrProgram = this.chrModuleResolver(modulePath)
+        }
+        if (!moduleSourceOrProgram) {
+          try {
+            moduleSourceOrProgram = readFileSync(modulePath, 'utf8')
+          } catch {
+            // File not found or not in filesystem environment
+          }
+        }
+
+        if (!moduleSourceOrProgram) {
+          throw new CHRExecutionError(
+            `Cannot resolve CHR module import: "${modulePath}". Register it via registerChrModule() or setChrModuleResolver().`,
+            imprt.span
+          )
+        }
+
+        const importedProg = typeof moduleSourceOrProgram === 'string'
+          ? parseProgram(moduleSourceOrProgram)
+          : moduleSourceOrProgram
+
+        this.addProgram(importedProg, visitedImports)
+      }
+    }
+
     const unusedFunctions = new Set(program.functionDeclarations.map((d) => d.name))
     const unusedActions = new Set(program.actionDeclarations.map((d) => d.name))
 
@@ -508,6 +573,10 @@ export class CHREngine {
       this.addRule(rule)
       this.checkMatchingAndShadowing(rule)
       this.scanRuleUsage(rule, unusedFunctions, unusedActions)
+    }
+
+    if (this.rules.length > 0 || this.declarations.size > 0 || this.functionDeclarations.size > 0 || this.actionDeclarations.size > 0) {
+      this._state = 'ready'
     }
 
     for (const name of unusedFunctions) {

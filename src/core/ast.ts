@@ -333,6 +333,17 @@ export interface HostImportDeclaration {
   span?: SourceSpan
 }
 
+/**
+ * An import CHR module statement: `import chr "filename.chr"` or `import "filename.chr"`.
+ *
+ * When parsed, the engine resolves the referenced CHR module, parses it,
+ * and recursively merges its declarations, imports, and rules.
+ */
+export interface ChrImportDeclaration {
+  path: string
+  span?: SourceSpan
+}
+
 // ---------------------------------------------------------------------------
 // Program node (top-level parsed result)
 // ---------------------------------------------------------------------------
@@ -342,10 +353,11 @@ export interface HostImportDeclaration {
  *
  * A `ProgramNode` aggregates all declarations, imports, and rules from a single
  * `.chr` source file. It is passed to `CHREngine.addProgram` which applies each
- * component in order: declarations → function declarations → action declarations
+ * component in order: chr imports → declarations → function declarations → action declarations
  * → host imports → rules.
  */
 export interface ProgramNode {
+  chrImports: ChrImportDeclaration[]
   declarations: ConstraintDeclaration[]
   functionDeclarations: HostFunctionDeclaration[]
   actionDeclarations: HostActionDeclaration[]
