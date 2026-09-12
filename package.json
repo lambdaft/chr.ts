@@ -2,6 +2,7 @@
   "name": "chr-ts",
   "version": "0.1.0",
   "description": "A fresh TypeScript-first CHR engine inspired by mature CHR implementations and the original CHR.js research prototype.",
+  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
