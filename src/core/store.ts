@@ -23,6 +23,7 @@
  */
 
 import { type ConstraintRecord, createConstraint, createFunctor } from './constraint.js'
+import { ArgumentIndex, type ArgumentIndexOptions } from './argument-index.js'
 
 /**
  * A lightweight snapshot entry for serialization and debugging.
@@ -47,6 +48,8 @@ export interface ConstraintStoreHooks {
  */
 export interface ConstraintStoreOptions {
   strict?: boolean | 'warn'
+  /** Options for argument-based indexing. */
+  argumentIndex?: ArgumentIndexOptions
 }
 
 /**
@@ -82,15 +85,19 @@ export class ConstraintStore {
   /** Cache for the most recent `lookup(name, arity)` result. Cleared on every mutation. */
   private readonly lookupCache = new Map<string, ConstraintRecord[]>()
 
+  /** Argument-based index for efficient value-based lookups. */
+  readonly argumentIndex: ArgumentIndex
+
   /**
    * Construct a new constraint store.
    *
    * @param hooks - Optional callbacks for `onAdd` and `onRemove`.
-   * @param options - `strict` enables invariant checking.
+   * @param options - `strict` enables invariant checking, `argumentIndex` configures argument-based indexing.
    */
   constructor (hooks: ConstraintStoreHooks = {}, options: ConstraintStoreOptions = {}) {
     this.hooks = hooks
     this.strict = options.strict ?? false
+    this.argumentIndex = new ArgumentIndex(options.argumentIndex)
     if (this.strict) this.assertInvariants()
   }
 
@@ -114,6 +121,9 @@ export class ConstraintStore {
     const ids = this.byFunctor.get(functor) ?? new Set<number>()
     ids.add(record.id)
     this.byFunctor.set(functor, ids)
+
+    // Add to argument index
+    this.argumentIndex.add(record)
 
     this.hooks.onAdd?.(record)
 
@@ -174,6 +184,9 @@ export class ConstraintStore {
     if (ids && ids.size === 0) {
       this.byFunctor.delete(functor)
     }
+
+    // Remove from argument index
+    this.argumentIndex.remove(record)
 
     if (this.byId.size === 0) {
       this.nextId = 1
@@ -239,6 +252,8 @@ export class ConstraintStore {
   /**
    * Lookup constraints matching a given name, arity, and a specific argument value at argIndex.
    *
+   * Uses argument index if available, otherwise falls back to scanning.
+   *
    * @param name - Constraint functor name.
    * @param arity - Constraint arity.
    * @param argIndex - 0-based argument index to filter by.
@@ -246,6 +261,16 @@ export class ConstraintStore {
    * @returns Array of matching `ConstraintRecord` objects.
    */
   lookupByArg (name: string, arity: number, argIndex: number, value: unknown): ConstraintRecord[] {
+    // Try argument index first
+    if (this.argumentIndex.hasSingleIndex(name, arity, argIndex)) {
+      const ids = this.argumentIndex.lookupByArg(name, arity, argIndex, value)
+      return ids
+        .map(id => this.byId.get(id))
+        .filter((r): r is ConstraintRecord => r !== undefined)
+        .sort((a, b) => a.id - b.id)
+    }
+
+    // Fall back to scanning
     const candidates = this.lookup(name, arity)
     if (argIndex < 0 || candidates.length === 0) return candidates
     return candidates.filter((c) => c.args[argIndex] === value)
@@ -260,6 +285,7 @@ export class ConstraintStore {
   clear (): void {
     this.byId.clear()
     this.byFunctor.clear()
+    this.argumentIndex.clear()
     this.nextId = 1
     this._invalid = false
   }
@@ -274,6 +300,7 @@ export class ConstraintStore {
   invalidate (): void {
     this.byId.clear()
     this.byFunctor.clear()
+    this.argumentIndex.clear()
     this.nextId = 1
     this._invalid = true
   }

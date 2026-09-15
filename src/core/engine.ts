@@ -51,6 +51,7 @@ import { Substitution } from './substitution.js'
 import { materializeSubstitution, unifyTerm } from './unification.js'
 import { readFileSync } from 'node:fs'
 import { evaluateExpression as evalExpression } from './engine/eval.js'
+import { JoinOptimizer, type JoinPlan } from './join-optimizer.js'
 
 // ---------------------------------------------------------------------------
 // Public interfaces and types
@@ -149,6 +150,10 @@ export interface CHREngineOptions {
   strictHostDeclarations?: boolean
   /** Maximum wall-clock time (ms) for a single host function call. `undefined` means no timeout. */
   hostFunctionTimeout?: number
+  /** Enable indexed CHR with argument-based indexing and join optimization. Default: true. */
+  enableIndexedCHR?: boolean
+  /** Options for argument-based indexing. */
+  argumentIndexOptions?: import('./argument-index.js').ArgumentIndexOptions
 }
 
 /**
@@ -190,12 +195,14 @@ export type EngineState = 'empty' | 'ready' | 'running' | 'error'
  *
  * The engine compiles `RuleNode` objects into `CompiledRule` objects at load
  * time. Pre-extracting `headFunctors` and `priority` avoids recomputing them
- * on every fixpoint iteration.
+ * on every fixpoint iteration. With indexed CHR enabled, it also includes
+ * optimized join plans.
  */
 interface CompiledRule {
   rule: RuleNode
   headFunctors: Array<{ name: string, arity: number }>
   priority: number
+  joinPlan?: JoinPlan
 }
 
 // ---------------------------------------------------------------------------
@@ -215,15 +222,15 @@ export class CHREngine {
   // Public mutable state (readonly views for consumers)
   // -------------------------------------------------------------------------
 
-  /** The constraint store: the primary data structure holding all asserted constraints. */
-  readonly store = new ConstraintStore()
-
   /** The propagation history: tracks which rule/constraint-ID combinations have already fired. */
   readonly history = new PropagationHistory()
 
   // -------------------------------------------------------------------------
   // Private internal state
   // -------------------------------------------------------------------------
+
+  /** The constraint store: the primary data structure holding all asserted constraints. */
+  readonly store: ConstraintStore
 
   /** Raw parsed rules as loaded by the user. */
   private readonly rules: RuleNode[] = []
@@ -261,6 +268,12 @@ export class CHREngine {
   /** Maximum rule firings per fixpoint (from constructor options). */
   private readonly maxRuleFirings: number
 
+  /** Whether indexed CHR is enabled. */
+  private readonly enableIndexedCHR: boolean
+
+  /** Join optimizer for indexed CHR. */
+  private readonly joinOptimizer: JoinOptimizer | null
+
   /** Optional callback for rule-firing observability. */
   private readonly onRuleFired: ((trace: RuleFireTrace) => void) | undefined
 
@@ -296,6 +309,13 @@ export class CHREngine {
     this.onRuleFired = options.onRuleFired
     this.strictHostDeclarations = options.strictHostDeclarations ?? false
     this.hostFunctionTimeout = options.hostFunctionTimeout
+    this.enableIndexedCHR = options.enableIndexedCHR ?? true
+    
+    // Initialize constraint store with argument indexing options
+    this.store = new ConstraintStore({}, { argumentIndex: options.argumentIndexOptions })
+    
+    // Initialize join optimizer if indexed CHR is enabled
+    this.joinOptimizer = this.enableIndexedCHR ? new JoinOptimizer(this.store.argumentIndex, this.store) : null
   }
 
   // -------------------------------------------------------------------------
@@ -355,7 +375,8 @@ export class CHREngine {
    *
    * This optimization avoids recomputing head functors on every fixpoint
    * iteration. The compiled representation is stored in `compiledRules` and
-   * the sorted priority list is rebuilt.
+   * the sorted priority list is rebuilt. With indexed CHR enabled, it also
+   * generates an optimized join plan.
    */
   private compileRule (rule: RuleNode): void {
     const headFunctors: Array<{ name: string, arity: number }> = []
@@ -371,6 +392,11 @@ export class CHREngine {
       rule,
       headFunctors,
       priority: rule.priority ?? 0
+    }
+
+    // Generate join plan if indexed CHR is enabled
+    if (this.joinOptimizer) {
+      compiled.joinPlan = this.joinOptimizer.optimizeJoin(rule)
     }
 
     this.compiledRules.push(compiled)
@@ -1249,13 +1275,132 @@ export class CHREngine {
    * Uses `findMatchRecursive` to perform a depth-first search over the
    * Cartesian product of store entries matching each head pattern. Returns
    * the first complete match whose guards all pass.
+   * 
+   * When indexed CHR is enabled, uses the optimized join plan to guide
+   * the search order and leverage argument-based indexes.
    */
   private async findMatch (rule: RuleNode): Promise<MatchResult | null> {
     const heads = [...rule.kept, ...rule.removed]
     if (heads.length === 0) {
       return { constraints: [], bindings: {} }
     }
+    
+    // Use optimized join plan if available
+    const compiledRule = this.compiledRules.find(cr => cr.rule === rule)
+    if (compiledRule?.joinPlan && this.enableIndexedCHR) {
+      return this.findMatchWithJoinPlan(rule, heads, compiledRule.joinPlan)
+    }
+    
     return this.findMatchRecursive(rule, heads, 0, [], {}, new Set<number>())
+  }
+
+  /**
+   * Find match using optimized join plan.
+   * 
+   * This method uses the pre-computed join plan to guide the search order
+   * and leverage argument-based indexes for efficient constraint matching.
+   */
+  private async findMatchWithJoinPlan (
+    rule: RuleNode,
+    heads: ConstraintPattern[],
+    joinPlan: import('./join-optimizer.js').JoinPlan
+  ): Promise<MatchResult | null> {
+    const matched: ConstraintRecord[] = []
+    const bindings: Record<string, unknown> = {}
+    const usedIds = new Set<number>()
+    
+    // Process each step in the join plan
+    for (const step of joinPlan.steps) {
+      const pattern = heads[step.constraintIndex]
+      if (!pattern) {
+        return null
+      }
+      
+      const candidates = this.getCandidatesForStep(pattern, step, bindings)
+      
+      let foundMatch = false
+      for (const candidate of candidates) {
+        if (usedIds.has(candidate.id)) {
+          continue
+        }
+        
+        const newBindings = this.matchPattern(rule, pattern, candidate, bindings)
+        if (!newBindings) {
+          continue
+        }
+        
+        // Update bindings with the new variable assignments
+        Object.assign(bindings, newBindings)
+        matched.push(candidate)
+        usedIds.add(candidate.id)
+        foundMatch = true
+        break
+      }
+      
+      if (!foundMatch) {
+        return null // No candidate found for this step
+      }
+    }
+    
+    // All constraints matched, check guards
+    const ids = matched.map((entry) => entry.id)
+    const guardsOk = await this.evaluateGuards(rule, matched, bindings)
+    if (!guardsOk) {
+      return null
+    }
+    
+    // Propagation rules use history to prevent infinite loops
+    if (rule.kind === 'propagation') {
+      if (this.history.has(rule.name ?? 'anonymous', ids)) {
+        return null
+      }
+      this.history.add(rule.name ?? 'anonymous', ids)
+    }
+    
+    return { constraints: matched, bindings }
+  }
+
+  /**
+   * Get candidate constraints for a join step based on the lookup method.
+   */
+  private getCandidatesForStep (
+    pattern: ConstraintPattern,
+    step: import('./join-optimizer.js').JoinStep,
+    bindings: Record<string, unknown>
+  ): ConstraintRecord[] {
+    switch (step.lookupMethod) {
+      case 'functor':
+        return this.store.lookup(pattern.name, pattern.args.length)
+      
+      case 'single-arg':
+        if (step.argIndex !== undefined && step.argValue !== undefined) {
+          return this.store.lookupByArg(pattern.name, pattern.args.length, step.argIndex, step.argValue)
+        }
+        // Fall back to functor lookup if value not known
+        return this.store.lookup(pattern.name, pattern.args.length)
+      
+      case 'composite':
+        if (step.compositeIndices && step.compositeValues) {
+          const ids = this.store.argumentIndex.lookupByArgs(
+            pattern.name,
+            pattern.args.length,
+            step.compositeIndices,
+            step.compositeValues
+          )
+          return ids
+            .map(id => this.store.get(id))
+            .filter((r): r is ConstraintRecord => r !== undefined)
+            .sort((a, b) => a.id - b.id)
+        }
+        // Fall back to functor lookup if composite lookup not possible
+        return this.store.lookup(pattern.name, pattern.args.length)
+      
+      case 'scan':
+        return this.store.lookup(pattern.name, pattern.args.length)
+      
+      default:
+        return this.store.lookup(pattern.name, pattern.args.length)
+    }
   }
 
   /**

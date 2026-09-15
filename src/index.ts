@@ -13,14 +13,18 @@
  */
 
 export * from './core/ast.js'
+export * from './core/argument-index.js'
 export * from './core/builtins.js'
 export * from './core/constraint.js'
 export * from './core/engine.js'
 export * from './core/errors.js'
 export * from './core/history.js'
 export * from './core/host.js'
+export * from './core/index-analyzer.js'
+export * from './core/join-optimizer.js'
 export * from './core/loader.js'
 export * from './core/parser.js'
+export * from './core/specialized-indexes.js'
 export * from './core/store.js'
 export * from './core/substitution.js'
 export * from './core/unification.js'
