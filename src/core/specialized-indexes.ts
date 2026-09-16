@@ -214,17 +214,17 @@ export class OrderingIndex {
     
     if (!functorIndex) return []
     
-    const argIndex = functorIndex.get(argIndex)
-    if (!argIndex) return []
+    const argEntries = functorIndex.get(argIndex)
+    if (!argEntries) return []
     
     // Binary search for first element > threshold
     const result: number[] = []
     let left = 0
-    let right = argIndex.length - 1
+    let right = argEntries.length - 1
     
     while (left <= right) {
       const mid = Math.floor((left + right) / 2)
-      if (argIndex[mid].value > threshold) {
+      if (argEntries[mid].value > threshold) {
         right = mid - 1
       } else {
         left = mid + 1
@@ -232,8 +232,8 @@ export class OrderingIndex {
     }
     
     // Collect all elements from left to end
-    for (let i = left; i < argIndex.length; i++) {
-      result.push(argIndex[i].id)
+    for (let i = left; i < argEntries.length; i++) {
+      result.push(argEntries[i].id)
     }
     
     return result
@@ -248,17 +248,17 @@ export class OrderingIndex {
     
     if (!functorIndex) return []
     
-    const argIndex = functorIndex.get(argIndex)
-    if (!argIndex) return []
+    const argEntries = functorIndex.get(argIndex)
+    if (!argEntries) return []
     
     // Binary search for last element < threshold
     const result: number[] = []
     let left = 0
-    let right = argIndex.length - 1
+    let right = argEntries.length - 1
     
     while (left <= right) {
       const mid = Math.floor((left + right) / 2)
-      if (argIndex[mid].value < threshold) {
+      if (argEntries[mid].value < threshold) {
         left = mid + 1
       } else {
         right = mid - 1
@@ -267,7 +267,7 @@ export class OrderingIndex {
     
     // Collect all elements from 0 to right
     for (let i = 0; i <= right; i++) {
-      result.push(argIndex[i].id)
+      result.push(argEntries[i].id)
     }
     
     return result
@@ -282,19 +282,19 @@ export class OrderingIndex {
     
     if (!functorIndex) return []
     
-    const argIndex = functorIndex.get(argIndex)
-    if (!argIndex) return []
+    const argEntries = functorIndex.get(argIndex)
+    if (!argEntries) return []
     
     // Binary search for range bounds
     let left = 0
-    let right = argIndex.length - 1
-    let startIdx = argIndex.length
+    let right = argEntries.length - 1
+    let startIdx = argEntries.length
     let endIdx = -1
     
     // Find first element >= min
     while (left <= right) {
       const mid = Math.floor((left + right) / 2)
-      if (argIndex[mid].value >= min) {
+      if (argEntries[mid].value >= min) {
         startIdx = mid
         right = mid - 1
       } else {
@@ -304,10 +304,10 @@ export class OrderingIndex {
     
     // Find last element <= max
     left = 0
-    right = argIndex.length - 1
+    right = argEntries.length - 1
     while (left <= right) {
       const mid = Math.floor((left + right) / 2)
-      if (argIndex[mid].value <= max) {
+      if (argEntries[mid].value <= max) {
         endIdx = mid
         left = mid + 1
       } else {
@@ -318,7 +318,7 @@ export class OrderingIndex {
     // Collect elements in range
     const result: number[] = []
     for (let i = startIdx; i <= endIdx; i++) {
-      result.push(argIndex[i].id)
+      result.push(argEntries[i].id)
     }
     
     return result
