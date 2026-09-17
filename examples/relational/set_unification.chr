@@ -1,0 +1,11 @@
+// Dovier et al. Finite Set Unification with CHR-vee
+// Equational rules for finite set unification with commutativity and idempotency
+
+// Pair equality decomposition
+pair_eq @ pair(A, B) == pair(C, D) <=> A == C, B == D;
+
+// Set equality with non-deterministic branching
+set_eq @ set(A, B) == set(C, D) <=> (A == C, B == D) | (A == D, B == C);
+
+// Set membership
+in_set @ member(X, set_cons(H, T)) <=> X == H | member(X, T);

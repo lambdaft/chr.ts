@@ -318,8 +318,8 @@ export class ArgumentIndex {
 
     // Add to composite indexes
     for (const [key, index] of this.compositeIndexes) {
-      const [functor, ...argIndicesStr] = key.split('/')
-      const indices = argIndicesStr[0].split(',').map(Number)
+      const parts = key.split('/')
+      const functor = parts.slice(0, 2).join('/')
       if (functor === `${name}/${arity}`) {
         index.add(id, args)
       }
@@ -343,8 +343,8 @@ export class ArgumentIndex {
 
     // Remove from composite indexes
     for (const [key, index] of this.compositeIndexes) {
-      const [functor, ...argIndicesStr] = key.split('/')
-      const indices = argIndicesStr[0].split(',').map(Number)
+      const parts = key.split('/')
+      const functor = parts.slice(0, 2).join('/')
       if (functor === `${name}/${arity}`) {
         index.remove(id, args)
       }
@@ -375,7 +375,10 @@ export class ArgumentIndex {
       // Reconstruct full args array for composite lookup
       const fullArgs = new Array(arity).fill(undefined)
       for (let i = 0; i < argIndices.length; i++) {
-        fullArgs[argIndices[i]] = values[i]
+        const idx = argIndices[i]
+        if (idx !== undefined) {
+          fullArgs[idx] = values[i]
+        }
       }
       return index.lookup(fullArgs)
     }
@@ -387,7 +390,6 @@ export class ArgumentIndex {
    * Create a single-argument index.
    */
   createSingleIndex (name: string, arity: number, argIndex: number): void {
-    const functorCount = this.singleIndexes.size
     const existingForFunctor = [...this.singleIndexes.keys()]
       .filter(k => k.startsWith(`${name}/${arity}/`)).length
 

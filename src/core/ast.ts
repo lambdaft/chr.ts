@@ -206,9 +206,9 @@ export interface BodyConstraint {
 /**
  * A host action to be executed when the rule fires.
  *
- * Actions are side-effecting operations defined in host modules. They receive
- * a `HostActionContext` that exposes the engine, store, history, matched
- * constraints, and variable bindings.
+ * Host actions are side-effecting operations (I/O, DOM manipulation, state
+ * mutation outside the CHR engine) that produce no constraint. They must
+ * be declared via `actions name/arity;` or imported from a host module.
  */
 export interface BodyAction {
   type: 'action'
@@ -217,11 +217,11 @@ export interface BodyAction {
 }
 
 /**
- * An in-place constraint update: remove `old` and add `constraint`.
+ * An in-place update of an existing constraint.
  *
- * The engine locates all store entries matching `old` and removes them, then
- * evaluates `constraint` and inserts the resulting constraint. This is the
- * CHR equivalent of a "retract + assert" pair in Prolog-like systems.
+ * Replaces a matched constraint with new argument values without generating
+ * a new constraint ID. This preserves propagation history and prevents
+ * unnecessary rule re-evaluations.
  */
 export interface BodyConstraintUpdate {
   type: 'update'
@@ -230,7 +230,7 @@ export interface BodyConstraintUpdate {
 }
 
 /**
- * A local variable binding evaluated before the rest of the body runs.
+ * A local variable binding evaluated before subsequent body constraints.
  *
  * The result is stored in the rule's `bindings` map and can be referenced by
  * subsequent body items. `let` bindings are purely local to a single rule
@@ -243,9 +243,17 @@ export interface BodyLetBinding {
 }
 
 /**
+ * A disjunctive choice point in a rule body ($CHR^\vee$).
+ */
+export interface BodyDisjunction {
+  type: 'disjunction'
+  branches: BodyItem[][]
+}
+
+/**
  * All possible items that may appear in a rule body.
  */
-export type BodyItem = BodyConstraint | BodyAction | BodyConstraintUpdate | BodyLetBinding
+export type BodyItem = BodyConstraint | BodyAction | BodyConstraintUpdate | BodyLetBinding | BodyDisjunction
 
 // ---------------------------------------------------------------------------
 // Rule node

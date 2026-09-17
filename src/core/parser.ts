@@ -530,11 +530,25 @@ function splitRuleOperator (source: string, kind: RuleKind): [string, string] {
  * the entire string is treated as the body and the guard is `null`.
  */
 function splitGuard (source: string): [string | null, string] {
-  const result = splitTopLevelOnce(source, '|')
-  if (result[1] === null) {
+  const parts = splitTopLevel(source, '|')
+  if (parts.length < 2) {
     return [null, source.trim()]
   }
-  return [result[0]?.trim() ?? '', result[1].trim()]
+
+  const firstPart = parts[0]?.trim() ?? ''
+  const restPart = parts.slice(1).join('|').trim()
+
+  // If first part is parenthesized e.g. (A == C, B == D) | ..., it's a disjunctive body
+  if (firstPart.startsWith('(') && firstPart.endsWith(')')) {
+    return [null, source.trim()]
+  }
+
+  // If first part is a semantic equality goal like X == heads | X == tails, it's disjunctive body
+  if (findTopLevelOperator(firstPart, '==') >= 0 && !firstPart.includes('===') && !firstPart.includes('!==')) {
+    return [null, source.trim()]
+  }
+
+  return [firstPart, restPart]
 }
 
 /**
@@ -567,14 +581,25 @@ function parseConstraints (source: string): ConstraintPattern[] {
 }
 
 /**
- * Parse a single constraint pattern like `edge(X, Y)` or `node`.
+ * Parse a single constraint pattern like `edge(X, Y)`, `node`, or semantic equality `X == Y`.
  *
  * Constraints without parentheses are treated as arity-0 (facts). The parser
  * does NOT validate the name against declared constraints; that is done later
  * by the engine.
  */
 function parseConstraint (source: string): ConstraintPattern {
-  const match = /^([a-z][A-Za-z0-9_]*)\s*(?:\((.*)\))?$/.exec(source.trim())
+  const trimmed = source.trim()
+  const eqIdx = findTopLevelOperator(trimmed, '==')
+  if (eqIdx >= 0) {
+    const left = trimmed.slice(0, eqIdx).trim()
+    const right = trimmed.slice(eqIdx + 2).trim()
+    return {
+      name: '==',
+      args: [parseExpression(left), parseExpression(right)]
+    }
+  }
+
+  const match = /^([a-z_][A-Za-z0-9_]*)\s*(?:\((.*)\))?$/.exec(trimmed)
   if (!match) {
     throw new CHRParseError(`Invalid constraint syntax: ${source}`)
   }
@@ -608,10 +633,23 @@ function withOptionalName (rule: Omit<RuleNode, 'name'>, name?: string): RuleNod
  * - `!` → host action (`BodyAction`)
  * - `let` → local variable binding (`BodyLetBinding`)
  * - `<=` at the top level → constraint update (`BodyConstraintUpdate`)
+ * - `|` at the top level → disjunctive choice (`BodyDisjunction`)
  * - Otherwise → new constraint assertion (`BodyConstraint`)
  */
 function parseBody (source: string): BodyItem[] {
-  return splitTopLevel(source, ',')
+  const trimmed = source.trim()
+  const disjParts = splitTopLevel(trimmed, '|')
+  if (disjParts.length > 1) {
+    const branches = disjParts.map(branch => {
+      const stripped = branch.trim().startsWith('(') && branch.trim().endsWith(')')
+        ? branch.trim().slice(1, -1).trim()
+        : branch.trim()
+      return parseBody(stripped)
+    })
+    return [{ type: 'disjunction', branches }]
+  }
+
+  return splitTopLevel(trimmed, ',')
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry): BodyItem => {
@@ -838,14 +876,7 @@ function splitTopLevel (source: string, separator: string | string[]): string[] 
  * occurrences of the separator joined back together. This is used for guard/body
  * splitting where the body may contain `|` inside strings or nested expressions.
  */
-function splitTopLevelOnce (source: string, separator: string): [string | null, string | null] {
-  const parts = splitTopLevel(source, separator)
-  if (parts.length < 2) {
-    return [source.trim(), null]
-  }
 
-  return [parts[0]?.trim() ?? null, parts.slice(1).join(separator).trim()]
-}
 
 /**
  * Find the index of a multi-character operator at top level.
@@ -964,7 +995,7 @@ function stripComments (source: string): string {
       if (!inString) {
         if (char === '"' || char === "'") {
           inString = char
-        } else if (char === '#' || char === '%' || (char === '-' && line[i + 1] === '-')) {
+        } else if (char === '#' || char === '%' || (char === '-' && line[i + 1] === '-') || (char === '/' && line[i + 1] === '/')) {
           return line.slice(0, i)
         }
       } else if (char === inString && line[i - 1] !== '\\') {

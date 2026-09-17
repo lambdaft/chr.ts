@@ -31,7 +31,7 @@
  * itself (directly or through the substitution chain).
  */
 
-import type { Expression, VariableExpression } from './ast.js'
+import type { Expression, VariableExpression, LiteralExpression, CallExpression, ArrayExpression } from './ast.js'
 import { Substitution } from './substitution.js'
 
 /**
@@ -40,25 +40,96 @@ import { Substitution } from './substitution.js'
  * This is the entry point for structural unification in the engine. It is
  * called from `engine.ts:matchPattern` when `rule.unify === true`.
  *
- * @param pattern - The AST expression from the rule head.
- * @param value - The concrete value from the constraint store.
+ * @param pattern - The AST expression from the rule head or value.
+ * @param value - The concrete value from the constraint store or expression.
  * @param subst - The current substitution (accumulates bindings).
  * @returns The updated substitution, or `null` if unification fails.
  */
 export function unifyTerm (
-  pattern: Expression,
+  pattern: Expression | unknown,
   value: unknown,
   subst: Substitution
 ): Substitution | null {
-  if (pattern.type === 'variable') {
+  if (pattern === value) {
+    return subst
+  }
+
+  if (isVariable(pattern)) {
     return unifyVariable(pattern.name, value, subst)
   }
 
-  if (pattern.type === 'literal') {
-    return pattern.value === value ? subst : null
+  if (isVariable(value)) {
+    return unifyVariable(value.name, pattern, subst)
   }
 
-  return null
+  if (isLiteral(pattern)) {
+    const rawVal = isLiteral(value) ? value.value : value
+    return pattern.value === rawVal ? subst : null
+  }
+
+  if (isLiteral(value)) {
+    const rawPattern = isLiteral(pattern) ? pattern.value : pattern
+    return value.value === rawPattern ? subst : null
+  }
+
+  if (isCall(pattern) && isCall(value)) {
+    if (pattern.callee !== value.callee || pattern.args.length !== value.args.length) {
+      return null
+    }
+    let currentSubst: Substitution | null = subst
+    for (let i = 0; i < pattern.args.length; i++) {
+      const p = pattern.args[i]
+      const v = value.args[i]
+      if (!p || !v) return null
+      currentSubst = unifyTerm(p, v, currentSubst)
+      if (!currentSubst) return null
+    }
+    return currentSubst
+  }
+
+  if (isArray(pattern) && isArray(value)) {
+    if (pattern.elements.length !== value.elements.length) return null
+    let currentSubst: Substitution | null = subst
+    for (let i = 0; i < pattern.elements.length; i++) {
+      const p = pattern.elements[i]
+      const v = value.elements[i]
+      if (!p || !v) return null
+      currentSubst = unifyTerm(p, v, currentSubst)
+      if (!currentSubst) return null
+    }
+    return currentSubst
+  }
+
+  return termsEqual(pattern, value) ? subst : null
+}
+
+function isVariable (val: unknown): val is VariableExpression {
+  return typeof val === 'object' && val !== null && (val as { type?: string }).type === 'variable'
+}
+
+function isLiteral (val: unknown): val is LiteralExpression {
+  return typeof val === 'object' && val !== null && (val as { type?: string }).type === 'literal'
+}
+
+function isCall (val: unknown): val is CallExpression {
+  return typeof val === 'object' && val !== null && (val as { type?: string }).type === 'call'
+}
+
+function isArray (val: unknown): val is ArrayExpression {
+  return typeof val === 'object' && val !== null && (val as { type?: string }).type === 'array'
+}
+
+function toExpression (val: unknown): Expression {
+  if (val && typeof val === 'object' && 'type' in (val as object)) {
+    return val as Expression
+  }
+  if (typeof val === 'string' && /^[A-Z_][A-Za-z0-9_]*$/.test(val)) {
+    return { type: 'variable', name: val }
+  }
+  if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean' || val === null) {
+    return { type: 'literal', value: val }
+  }
+  return { type: 'literal', value: null }
 }
 
 /**
@@ -84,20 +155,27 @@ function unifyVariable (
   const existing = subst.get(name)
 
   if (existing !== undefined) {
-    return termsEqual(existing, value) ? subst : null
+    if (typeof existing === 'object' && existing !== null && (existing as { type: string }).type === 'variable') {
+      return unifyVariable((existing as VariableExpression).name, value, subst)
+    }
+    return unifyTerm(toExpression(existing), value, subst)
   }
 
   if (typeof value === 'object' && value !== null && (value as { type: string }).type === 'variable') {
     const varName = (value as VariableExpression).name
+    if (name === varName) {
+      return subst
+    }
     if (subst.has(varName)) {
       const resolved = subst.get(varName)
       if (resolved !== undefined && occursIn(name, resolved, subst)) {
         return null
       }
     }
-    if (occursIn(name, value, subst)) {
-      return null
-    }
+  }
+
+  if (occursIn(name, value, subst)) {
+    return null
   }
 
   const next = subst.clone()
@@ -125,6 +203,14 @@ function occursIn (name: string, value: unknown, subst: Substitution): boolean {
       if (resolved !== undefined) {
         return occursIn(name, resolved, subst)
       }
+    }
+    if ((value as { type: string }).type === 'call') {
+      const callVal = value as CallExpression
+      return callVal.args.some(arg => occursIn(name, arg, subst))
+    }
+    if ((value as { type: string }).type === 'array') {
+      const arrVal = value as ArrayExpression
+      return arrVal.elements.some(elem => occursIn(name, elem, subst))
     }
   }
   return false
@@ -169,15 +255,20 @@ export function resolveVariable (name: string, subst: Substitution): unknown {
   while (depth < MAX_SUBSTITUTION_DEPTH) {
     const resolved = subst.get(current)
     if (resolved === undefined) {
-      return current
+      return undefined
     }
     if (typeof resolved === 'string' || typeof resolved === 'number' || typeof resolved === 'boolean' || resolved === null) {
       return resolved
     }
-    if (typeof resolved === 'object' && resolved !== null && (resolved as { type: string }).type === 'variable') {
-      current = (resolved as VariableExpression).name
-      depth++
-      continue
+    if (typeof resolved === 'object' && resolved !== null) {
+      if ((resolved as { type: string }).type === 'variable') {
+        current = (resolved as VariableExpression).name
+        depth++
+        continue
+      }
+      if ((resolved as { type: string }).type === 'literal') {
+        return (resolved as LiteralExpression).value
+      }
     }
     return resolved
   }
@@ -197,14 +288,16 @@ export function resolveVariable (name: string, subst: Substitution): unknown {
  */
 export function materializeSubstitution (
   subst: Substitution,
-  fallback: Record<string, unknown>
+  fallback: Record<string, unknown> = {}
 ): Record<string, unknown> {
   const bindings: Record<string, unknown> = { ...fallback }
 
   for (const [name] of subst.entries()) {
     if (name === '_') continue
     const resolved = resolveVariable(name, subst)
-    bindings[name] = resolved
+    if (resolved !== undefined) {
+      bindings[name] = resolved
+    }
   }
 
   return bindings

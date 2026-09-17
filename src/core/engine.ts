@@ -52,6 +52,10 @@ import { materializeSubstitution, unifyTerm } from './unification.js'
 import { readFileSync } from 'node:fs'
 import { evaluateExpression as evalExpression } from './engine/eval.js'
 import { JoinOptimizer, type JoinPlan } from './join-optimizer.js'
+import { RecursionUnfolder, type UnfolderOptions } from './recursion-unfolder.js'
+import { UnfoldInterpreter } from './unfold-interpreter.js'
+import { RelationalEngine, type RelationalQueryOptions } from './relational-engine.js'
+import type { RelationalGoal } from './stream.js'
 
 // ---------------------------------------------------------------------------
 // Public interfaces and types
@@ -154,6 +158,10 @@ export interface CHREngineOptions {
   enableIndexedCHR?: boolean
   /** Options for argument-based indexing. */
   argumentIndexOptions?: import('./argument-index.js').ArgumentIndexOptions
+  /** Enable runtime recursion unfolding for linear recursive rules. Default: false. */
+  enableRecursionUnfolding?: boolean
+  /** Options for the recursion unfolder. */
+  unfolderOptions?: UnfolderOptions
 }
 
 /**
@@ -274,6 +282,12 @@ export class CHREngine {
   /** Join optimizer for indexed CHR. */
   private readonly joinOptimizer: JoinOptimizer | null
 
+  /** Recursion unfolder for optimizing linear recursive rules. */
+  private readonly unfolder: RecursionUnfolder | null
+
+  /** Whether recursion unfolding is enabled. */
+  private readonly enableRecursionUnfolding: boolean
+
   /** Optional callback for rule-firing observability. */
   private readonly onRuleFired: ((trace: RuleFireTrace) => void) | undefined
 
@@ -309,13 +323,21 @@ export class CHREngine {
     this.onRuleFired = options.onRuleFired
     this.strictHostDeclarations = options.strictHostDeclarations ?? false
     this.hostFunctionTimeout = options.hostFunctionTimeout
-    this.enableIndexedCHR = options.enableIndexedCHR ?? true
+    this.enableIndexedCHR = options.enableIndexedCHR ?? false
+    this.enableRecursionUnfolding = options.enableRecursionUnfolding ?? false
     
     // Initialize constraint store with argument indexing options
-    this.store = new ConstraintStore({}, { argumentIndex: options.argumentIndexOptions })
+    const storeOptions: { argumentIndex?: import('./argument-index.js').ArgumentIndexOptions } = {}
+    if (options.argumentIndexOptions) {
+      storeOptions.argumentIndex = options.argumentIndexOptions
+    }
+    this.store = new ConstraintStore({}, storeOptions)
     
     // Initialize join optimizer if indexed CHR is enabled
     this.joinOptimizer = this.enableIndexedCHR ? new JoinOptimizer(this.store.argumentIndex, this.store) : null
+    
+    // Initialize recursion unfolder if enabled
+    this.unfolder = this.enableRecursionUnfolding ? new RecursionUnfolder(options.unfolderOptions) : null
   }
 
   // -------------------------------------------------------------------------
@@ -449,13 +471,16 @@ export class CHREngine {
     }
 
     // Validate body doesn't use undeclared variables.
+    const currentScopeVars = new Set(patternVars)
     for (const item of rule.body) {
-      if (item.type === 'constraint') {
+      if (item.type === 'let') {
+        currentScopeVars.add(item.name)
+      } else if (item.type === 'constraint') {
         for (const arg of item.constraint.args) {
           const bodyVars = new Set<string>()
           this.collectVariablesInExpression(arg, bodyVars)
           for (const varName of bodyVars) {
-            if (varName !== '_' && !patternVars.has(varName)) {
+            if (varName !== '_' && !currentScopeVars.has(varName)) {
               throw new CHRExecutionError(
                 `Body constraint uses unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'..`,
                 rule.span
@@ -468,7 +493,7 @@ export class CHREngine {
           const bodyVars = new Set<string>()
           this.collectVariablesInExpression(arg, bodyVars)
           for (const varName of bodyVars) {
-            if (varName !== '_' && !patternVars.has(varName)) {
+            if (varName !== '_' && !currentScopeVars.has(varName)) {
               throw new CHRExecutionError(
                 `Body update uses unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'..`,
                 rule.span
@@ -611,15 +636,87 @@ export class CHREngine {
     for (const name of unusedActions) {
       this.warnings.push(`Unused action declaration: actions ${name}/...`)
     }
+
+    // Inject recursion unfolder rules if enabled
+    if (this.unfolder) {
+      this.injectUnfolderRules()
+    }
   }
 
   /**
-   * Parse and load a `.chr` source string in one step.
+    * Parse and load a `.chr` source string in one step.
    *
    * Equivalent to `addProgram(parseProgram(source))`.
    */
   addRules (source: string): void {
     this.addProgram(parseProgram(source))
+  }
+
+  /**
+   * Inject recursion unfolder rules if recursion unfolding is enabled.
+   *
+   * This method analyzes loaded rules for linear recursion and replaces
+   * recursive rules with specialized unfolded rules for O(log n) performance.
+   */
+  private injectUnfolderRules (): void {
+    if (!this.unfolder) {
+      return
+    }
+
+    const ruleSets = this.unfolder.analyze(this.rules)
+    if (ruleSets.size === 0) {
+      return
+    }
+
+    // Find and remove original recursive rules
+    const rulesToRemove: RuleNode[] = []
+    for (const [, ruleSet] of ruleSets) {
+      rulesToRemove.push(ruleSet.originalRule)
+    }
+
+    for (const rule of rulesToRemove) {
+      this.removeRule(rule)
+    }
+
+    // Add unfold-interpreter meta-rules (unf/3 and mip/2) once
+    const interpreter = new UnfoldInterpreter()
+    const metaRules = interpreter.getUnfoldRules('', 0)
+    for (const rule of metaRules) {
+      this.addRule(rule)
+    }
+
+    // Add entry rules and dispatch-style specialized rules
+    for (const [, ruleSet] of ruleSets) {
+      if (ruleSet.entryRule) {
+        this.addRule(ruleSet.entryRule)
+      }
+      for (const rule of ruleSet.unfoldedRules) {
+        this.addRule(rule)
+      }
+    }
+  }
+
+  /**
+   * Remove a rule from the engine.
+   *
+   * This method removes the rule from both the raw rules list and the
+   * compiled rules list. It is used internally by the recursion unfolder
+   * to replace recursive rules with specialized unfolded rules.
+   *
+   * @param rule - The rule to remove.
+   */
+  private removeRule (rule: RuleNode): void {
+    const ruleIndex = this.rules.indexOf(rule)
+    if (ruleIndex !== -1) {
+      this.rules.splice(ruleIndex, 1)
+    }
+
+    const compiledIndex = this.compiledRules.findIndex(cr => cr.rule === rule)
+    if (compiledIndex !== -1) {
+      this.compiledRules.splice(compiledIndex, 1)
+    }
+
+    this.rebuildSortedRules()
   }
 
   /**
@@ -1366,7 +1463,7 @@ export class CHREngine {
   private getCandidatesForStep (
     pattern: ConstraintPattern,
     step: import('./join-optimizer.js').JoinStep,
-    bindings: Record<string, unknown>
+    _bindings: Record<string, unknown>
   ): ConstraintRecord[] {
     switch (step.lookupMethod) {
       case 'functor':
@@ -1491,7 +1588,7 @@ export class CHREngine {
   ): Record<string, unknown> | null {
     let nextBindings: Record<string, unknown> = { ...bindings }
     const useUnification = rule.unify === true
-    const subst = useUnification ? this.initSubstitution(bindings) : null
+    let subst = useUnification ? this.initSubstitution(bindings) : null
 
     for (let index = 0; index < pattern.args.length; index++) {
       const term = pattern.args[index]
@@ -1511,6 +1608,7 @@ export class CHREngine {
           if (!unified) {
             return null
           }
+          subst = unified
           nextBindings = materializeSubstitution(unified, nextBindings)
         } else {
           // Strict matching: variable must not conflict with existing bindings.
@@ -1626,7 +1724,8 @@ export class CHREngine {
       } else if (item.type === 'update') {
         await this.applyConstraintUpdate(rule, match, item)
       } else if (item.type === 'let') {
-        await this.evaluateExpression(item.expr, rule, match.constraints, match.bindings, false)
+        const val = await this.evaluateExpression(item.expr, rule, match.constraints, match.bindings, false)
+        match.bindings[item.name] = val
       }
     }
   }
@@ -1983,6 +2082,7 @@ export class CHREngine {
       for (const listener of this.ruleFiredListeners) {
         listener(trace)
       }
+      this.unfolder?.onTrace(trace)
     } catch {
       // ignore trace callback errors
     }
@@ -2018,5 +2118,39 @@ export class CHREngine {
       return `. Did you mean ${bestName}?`
     }
     return ''
+  }
+
+  // -------------------------------------------------------------------------
+  // chrKanren: Relational solver integration
+  // -------------------------------------------------------------------------
+
+  /**
+   * Convert this CHREngine into a RelationalEngine sharing the same loaded rules.
+   */
+  toRelationalEngine (): RelationalEngine {
+    return new RelationalEngine(this.rules)
+  }
+
+  /**
+   * Run a relational query with CHR-vee semantics on this engine's loaded rules.
+   */
+  runRelational (
+    n: number | null,
+    vars: string[],
+    goals: string | RelationalGoal | RelationalGoal[],
+    options?: RelationalQueryOptions
+  ): Array<Record<string, unknown>> {
+    return this.toRelationalEngine().run(n, vars, goals, options)
+  }
+
+  /**
+   * Stream solutions lazily as a generator on this engine's loaded rules.
+   */
+  *streamSolutions (
+    vars: string[],
+    goals: string | RelationalGoal | RelationalGoal[],
+    options?: RelationalQueryOptions
+  ): Generator<Record<string, unknown>, void, unknown> {
+    yield * this.toRelationalEngine().streamSolutions(vars, goals, options)
   }
 }

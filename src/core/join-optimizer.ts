@@ -114,7 +114,9 @@ export class JoinOptimizer {
     }
 
     if (heads.length === 1) {
-      return this.optimizeSingleConstraint(heads[0], 0)
+      const firstHead = heads[0]
+      if (!firstHead) return this.createEmptyPlan()
+      return this.optimizeSingleConstraint(firstHead, 0)
     }
 
     return this.optimizeMultiConstraintJoin(rule, heads)
@@ -136,7 +138,6 @@ export class JoinOptimizer {
    * Optimize join for a single constraint.
    */
   private optimizeSingleConstraint (head: ConstraintPattern, index: number): JoinPlan {
-    const functor = `${head.name}/${head.args.length}`
     const step = this.createBestLookupStep(head, index, null)
     
     return {
@@ -155,7 +156,9 @@ export class JoinOptimizer {
     const plans = this.generateJoinPlans(rule, heads)
     
     // Select the plan with minimum cost
-    let bestPlan = plans[0]
+    const firstPlan = plans[0]
+    if (!firstPlan) return this.createEmptyPlan()
+    let bestPlan = firstPlan
     for (const plan of plans) {
       if (plan.totalCost < bestPlan.totalCost) {
         bestPlan = plan
@@ -187,7 +190,7 @@ export class JoinOptimizer {
   /**
    * Build a join plan for a specific join order.
    */
-  private buildPlanForOrder (rule: RuleNode, heads: ConstraintPattern[], order: number[]): JoinPlan {
+  private buildPlanForOrder (_rule: RuleNode, heads: ConstraintPattern[], order: number[]): JoinPlan {
     const steps: JoinStep[] = []
     let totalCost = 0
     let currentCardinality = 0
@@ -195,7 +198,9 @@ export class JoinOptimizer {
     
     for (let i = 0; i < order.length; i++) {
       const headIndex = order[i]
+      if (headIndex === undefined) continue
       const head = heads[headIndex]
+      if (!head) continue
       const previousSteps = steps.slice(0, i)
       
       const step = this.createBestLookupStep(head, headIndex, previousSteps)
@@ -242,6 +247,7 @@ export class JoinOptimizer {
     for (let i = 0; i < head.args.length; i++) {
       if (this.argumentIndex.hasSingleIndex(head.name, head.args.length, i)) {
         const arg = head.args[i]
+        if (!arg) continue
         let value: unknown | undefined
         
         // Try to infer value from previous steps if it's a variable
@@ -250,7 +256,7 @@ export class JoinOptimizer {
         }
         
         if (value !== undefined || arg.type === 'literal') {
-          const lookupValue = arg.type === 'literal' ? arg.value : value
+          const lookupValue = arg.type === 'literal' ? (arg as { value: unknown }).value : value
           const cost = this.estimateSingleArgLookupCost(functor, i, lookupValue)
           const cardinality = this.estimateSingleArgCardinality(functor, i, lookupValue)
           
@@ -274,9 +280,13 @@ export class JoinOptimizer {
       
       for (const idx of indices) {
         const arg = head.args[idx]
+        if (!arg) {
+          allValuesKnown = false
+          break
+        }
         if (arg.type === 'literal') {
-          values.push(arg.value)
-        } else if (previousSteps) {
+          values.push((arg as { value: unknown }).value)
+        } else if (arg.type === 'variable' && previousSteps) {
           const value = this.inferVariableValue(arg.name, previousSteps)
           if (value !== undefined) {
             values.push(value)
@@ -315,7 +325,16 @@ export class JoinOptimizer {
     })
     
     // Select the best candidate
-    let best = candidates[0]
+    const firstCand = candidates[0]
+    if (!firstCand) {
+      return {
+        constraintIndex: headIndex,
+        lookupMethod: 'scan',
+        estimatedCost: 1000,
+        estimatedCardinality: 100
+      }
+    }
+    let best = firstCand
     for (const candidate of candidates) {
       if (candidate.estimatedCost < best.estimatedCost) {
         best = candidate
@@ -328,7 +347,7 @@ export class JoinOptimizer {
   /**
    * Infer variable value from previous join steps.
    */
-  private inferVariableValue (varName: string, previousSteps: JoinStep[]): unknown | undefined {
+  private inferVariableValue (_varName: string, previousSteps: JoinStep[]): unknown | undefined {
     // This is a simplified implementation - in practice, you'd need to track
     // variable bindings through the join process
     for (const step of previousSteps) {
@@ -369,7 +388,10 @@ export class JoinOptimizer {
    * Estimate cardinality from functor lookup.
    */
   private estimateFunctorCardinality (functor: string): number {
-    const candidates = this.store.lookup(functor.split('/')[0], parseInt(functor.split('/')[1], 10))
+    const [namePart, arityPart] = functor.split('/')
+    const name = namePart ?? ''
+    const arity = parseInt(arityPart ?? '0', 10)
+    const candidates = this.store.lookup(name, arity)
     return candidates.length
   }
 
@@ -385,9 +407,12 @@ export class JoinOptimizer {
    * Estimate cardinality from single-argument lookup.
    */
   private estimateSingleArgCardinality (functor: string, argIndex: number, value: unknown): number {
+    const [namePart, arityPart] = functor.split('/')
+    const name = namePart ?? ''
+    const arity = parseInt(arityPart ?? '0', 10)
     const ids = this.argumentIndex.lookupByArg(
-      functor.split('/')[0],
-      parseInt(functor.split('/')[1], 10),
+      name,
+      arity,
       argIndex,
       value
     )
@@ -406,9 +431,12 @@ export class JoinOptimizer {
    * Estimate cardinality from composite lookup.
    */
   private estimateCompositeCardinality (functor: string, indices: number[], values: unknown[]): number {
+    const [namePart, arityPart] = functor.split('/')
+    const name = namePart ?? ''
+    const arity = parseInt(arityPart ?? '0', 10)
     const ids = this.argumentIndex.lookupByArgs(
-      functor.split('/')[0],
-      parseInt(functor.split('/')[1], 10),
+      name,
+      arity,
       indices,
       values
     )
@@ -433,6 +461,7 @@ export class JoinOptimizer {
     const result: T[][] = []
     for (let i = 0; i < arr.length; i++) {
       const current = arr[i]
+      if (current === undefined) continue
       const remaining = [...arr.slice(0, i), ...arr.slice(i + 1)]
       const remainingPerms = this.generatePermutations(remaining)
       for (const perm of remainingPerms) {

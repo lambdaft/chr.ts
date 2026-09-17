@@ -74,7 +74,7 @@ export class EqualityIndex {
   /**
    * Lookup constraints by exact argument value.
    */
-  lookup (name: string, arity: number, argIndex: number, value: unknown): number[] {
+  lookup (name: string, arity: number, _argIndex: number, value: unknown): number[] {
     const functor = `${name}/${arity}`
     const functorIndex = this.index.get(functor)
     
@@ -224,7 +224,8 @@ export class OrderingIndex {
     
     while (left <= right) {
       const mid = Math.floor((left + right) / 2)
-      if (argEntries[mid].value > threshold) {
+      const entry = argEntries[mid]
+      if (entry && entry.value > threshold) {
         right = mid - 1
       } else {
         left = mid + 1
@@ -233,7 +234,10 @@ export class OrderingIndex {
     
     // Collect all elements from left to end
     for (let i = left; i < argEntries.length; i++) {
-      result.push(argEntries[i].id)
+      const entry = argEntries[i]
+      if (entry) {
+        result.push(entry.id)
+      }
     }
     
     return result
@@ -258,7 +262,8 @@ export class OrderingIndex {
     
     while (left <= right) {
       const mid = Math.floor((left + right) / 2)
-      if (argEntries[mid].value < threshold) {
+      const entry = argEntries[mid]
+      if (entry && entry.value < threshold) {
         left = mid + 1
       } else {
         right = mid - 1
@@ -267,7 +272,10 @@ export class OrderingIndex {
     
     // Collect all elements from 0 to right
     for (let i = 0; i <= right; i++) {
-      result.push(argEntries[i].id)
+      const entry = argEntries[i]
+      if (entry) {
+        result.push(entry.id)
+      }
     }
     
     return result
@@ -294,7 +302,8 @@ export class OrderingIndex {
     // Find first element >= min
     while (left <= right) {
       const mid = Math.floor((left + right) / 2)
-      if (argEntries[mid].value >= min) {
+      const entry = argEntries[mid]
+      if (entry && entry.value >= min) {
         startIdx = mid
         right = mid - 1
       } else {
@@ -307,7 +316,8 @@ export class OrderingIndex {
     right = argEntries.length - 1
     while (left <= right) {
       const mid = Math.floor((left + right) / 2)
-      if (argEntries[mid].value <= max) {
+      const entry = argEntries[mid]
+      if (entry && entry.value <= max) {
         endIdx = mid
         left = mid + 1
       } else {
@@ -318,7 +328,10 @@ export class OrderingIndex {
     // Collect elements in range
     const result: number[] = []
     for (let i = startIdx; i <= endIdx; i++) {
-      result.push(argEntries[i].id)
+      const entry = argEntries[i]
+      if (entry) {
+        result.push(entry.id)
+      }
     }
     
     return result

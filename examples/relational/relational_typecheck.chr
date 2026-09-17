@@ -1,0 +1,15 @@
+// Relational simply-typed lambda calculus type system with CHR-vee
+// Rules define typing relations with early failure and bidirectional inference
+
+// Variable typing lookup: duplicate types for the same variable must unify
+has_type(X, T1) \ has_type(X, T2) <=> T1 == T2;
+
+// Literal primitive typings
+lit_int @ typeof_lit(N, 'int') <=> true;
+lit_bool @ typeof_lit(B, 'bool') <=> true;
+
+// Addition typing: plus(A, B, Res) requires A: int, B: int, Res: int
+type_plus @ plus(A, B, Res) <=> has_type(A, 'int'), has_type(B, 'int'), has_type(Res, 'int');
+
+// Function application typing: app(F, Arg, Res) requires F: arrow(ArgType, ResType), Arg: ArgType, Res: ResType
+type_app @ app(F, Arg, Res) <=> has_type(F, arrow(ArgT, ResT)), has_type(Arg, ArgT), has_type(Res, ResT);

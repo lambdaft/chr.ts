@@ -76,7 +76,7 @@ export interface JoinPattern {
 export class IndexAnalyzer {
   private readonly rules: RuleNode[]
   private readonly constraintUsages = new Map<string, Set<number>>()
-  private readonly argumentCooccurrences = new Map<string, Map<string, number>>()
+  private readonly argumentCooccurrences = new Map<string, number>()
 
   constructor (rules: RuleNode[]) {
     this.rules = rules
@@ -100,8 +100,12 @@ export class IndexAnalyzer {
 
       // Track argument co-occurrences in heads
       for (let i = 0; i < heads.length; i++) {
+        const headI = heads[i]
+        if (!headI) continue
         for (let j = i + 1; j < heads.length; j++) {
-          this.trackCooccurrence(heads[i], heads[j])
+          const headJ = heads[j]
+          if (!headJ) continue
+          this.trackCooccurrence(headI, headJ)
         }
       }
     }
@@ -140,9 +144,10 @@ export class IndexAnalyzer {
     const vars: Record<string, number[]> = {}
     for (let i = 0; i < pattern.args.length; i++) {
       const arg = pattern.args[i]
-      if (arg.type === 'variable' && arg.name !== '_') {
-        if (!vars[arg.name]) vars[arg.name] = []
-        vars[arg.name].push(i)
+      if (arg && arg.type === 'variable' && arg.name !== '_') {
+        const existing = vars[arg.name] ?? []
+        existing.push(i)
+        vars[arg.name] = existing
       }
     }
     return vars
@@ -158,9 +163,9 @@ export class IndexAnalyzer {
   detectFunctionalDependencies (): FunctionalDependency[] {
     const dependencies: FunctionalDependency[] = []
     
-    for (const [functor, usages] of this.constraintUsages) {
-      const [name, arityStr] = functor.split('/')
-      const arity = parseInt(arityStr, 10)
+    for (const [functor] of this.constraintUsages) {
+      const parts = functor.split('/')
+      const arity = parseInt(parts[1] ?? '0', 10)
       
       // Analyze each argument position
       for (let detIdx = 0; detIdx < arity; detIdx++) {
@@ -192,13 +197,19 @@ export class IndexAnalyzer {
     let totalCooccurrences = 0
     
     for (const [key, count] of this.argumentCooccurrences) {
-      const [source, target] = key.split('->')
-      const [sourceFunctor, sourceIdx] = source.split(':')
-      const [targetFunctor, targetIdx] = target.split(':')
+      const parts = key.split('->')
+      const source = parts[0] ?? ''
+      const target = parts[1] ?? ''
+      const sourceParts = source.split(':')
+      const targetParts = target.split(':')
+      const sourceFunctor = sourceParts[0]
+      const sourceIdx = sourceParts[1]
+      const targetFunctor = targetParts[0]
+      const targetIdx = targetParts[1]
       
-      if (sourceFunctor === functor && targetFunctor === functor) {
+      if (sourceFunctor === functor && targetFunctor === functor && sourceIdx !== undefined && targetIdx !== undefined) {
         totalCooccurrences += count
-        if (parseInt(sourceIdx) === detIdx && parseInt(targetIdx) === depIdx) {
+        if (parseInt(sourceIdx, 10) === detIdx && parseInt(targetIdx, 10) === depIdx) {
           sameVarCount += count
         }
       }
@@ -219,8 +230,8 @@ export class IndexAnalyzer {
     const symmetries: SymmetryInfo[] = []
     
     for (const functor of this.constraintUsages.keys()) {
-      const [name, arityStr] = functor.split('/')
-      const arity = parseInt(arityStr, 10)
+      const parts = functor.split('/')
+      const arity = parseInt(parts[1] ?? '0', 10)
       
       const symmetricPairs: number[][] = []
       let fullySymmetric = true
@@ -299,8 +310,10 @@ export class IndexAnalyzer {
       const allVars = new Map<string, Array<{ constraint: string, argIndex: number }>>()
       
       for (let i = 0; i < heads.length; i++) {
+        const head = heads[i]
         const functor = constraints[i]
-        const vars = this.extractVariables(heads[i])
+        if (!head || !functor) continue
+        const vars = this.extractVariables(head)
         
         for (const [varName, indices] of Object.entries(vars)) {
           for (const idx of indices) {
@@ -312,7 +325,7 @@ export class IndexAnalyzer {
       }
       
       // Variables appearing in multiple heads are join variables
-      for (const [varName, occurrences] of allVars) {
+      for (const [, occurrences] of allVars) {
         if (occurrences.length > 1) {
           joinVariables.push(...occurrences)
         }
@@ -357,7 +370,7 @@ export class IndexAnalyzer {
   /**
    * Recommend optimal join order based on selectivity.
    */
-  private recommendJoinOrder (constraints: string[], joinVariables: Array<{ constraint: string, argIndex: number }>): number[] {
+  private recommendJoinOrder (constraints: string[], _joinVariables: Array<{ constraint: string, argIndex: number }>): number[] {
     // Calculate selectivity for each constraint
     const selectivities = constraints.map(constraint => {
       const usages = this.constraintUsages.get(constraint)?.size ?? 1
@@ -365,7 +378,7 @@ export class IndexAnalyzer {
     })
     
     // Sort by selectivity (most selective first)
-    const indexed = constraints.map((c, i) => ({ constraint: c, selectivity: selectivities[i], index: i }))
+    const indexed = constraints.map((c, i) => ({ constraint: c, selectivity: selectivities[i] ?? 1, index: i }))
     indexed.sort((a, b) => b.selectivity - a.selectivity)
     
     return indexed.map(item => item.index)
