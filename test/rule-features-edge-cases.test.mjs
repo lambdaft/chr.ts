@@ -70,7 +70,7 @@ test('let binding in simpagation rule', async () => {
   const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.registerBuiltins()
   engine.addRules(`
-    step @ keep(X) \ remove(X) <=>
+    step @ keep(X) \\ remove(X) <=>
       let Doubled = add(X, X)
       | result(Doubled);
   `)
@@ -240,6 +240,7 @@ test('constraint lookupOne returns arg from first match', async () => {
   `)
 
   await engine.assert('target', ['first', 'second'])
+  await engine.assert('a', [])
   const result = engine.store.lookup('result', 1)
   assert.equal(result.length, 1)
   assert.equal(result[0].args[0], 'second')

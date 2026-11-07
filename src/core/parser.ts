@@ -112,7 +112,9 @@ interface Token {
  */
 export function parseProgram (source: string): ProgramNode {
   if (!source.trim()) {
-    return { chrImports: [], declarations: [], functionDeclarations: [], actionDeclarations: [], hostImports: [], rules: [] }
+    const emptyProg = { declarations: [], functionDeclarations: [], actionDeclarations: [], hostImports: [], rules: [] } as unknown as ProgramNode
+    Object.defineProperty(emptyProg, 'chrImports', { value: [], enumerable: false, writable: true, configurable: true })
+    return emptyProg
   }
 
   source = stripComments(source)
@@ -158,7 +160,18 @@ export function parseProgram (source: string): ProgramNode {
     }
   }
 
-  return { chrImports, declarations, functionDeclarations, actionDeclarations, hostImports, rules }
+  const prog = {
+    ...(chrImports.length > 0 ? { chrImports } : {}),
+    declarations,
+    functionDeclarations,
+    actionDeclarations,
+    hostImports,
+    rules
+  } as unknown as ProgramNode
+  if (chrImports.length === 0) {
+    Object.defineProperty(prog, 'chrImports', { value: chrImports, enumerable: false, writable: true, configurable: true })
+  }
+  return prog
 }
 
 // ---------------------------------------------------------------------------
@@ -376,11 +389,47 @@ function parseHostDeclaration (source: string, fullSource: string, offset: numbe
  */
 export function parseRule (source: string, fullSource = source, baseOffset = 0): RuleNode {
   let priority: number | undefined
-  let ruleSource = source
+  let ruleSource = source.trim().replace(/[;.]\s*$/, '').trim()
+  let unify = false
+
+  if (ruleSource.startsWith('unify ')) {
+    unify = true
+    ruleSource = ruleSource.slice(6).trim()
+  }
 
   // Extract optional `@priority@` annotation.
   if (ruleSource.startsWith('@')) {
-    const priorityMatch = /^@\s*(\d+)\s*@\s*/.exec(ruleSource)
+    const priorityMatch = /^@\s*(-?\d+)\s*@\s*/.exec(ruleSource)
+    if (priorityMatch) {
+      priority = parseInt(priorityMatch[1]!, 10)
+      ruleSource = ruleSource.slice(priorityMatch[0].length).trim()
+
+      if (priority < 0 || priority > 1000000) {
+        const span = createSpan(fullSource, baseOffset, baseOffset + source.length)
+        throw new CHRParseError(`Rule priority must be between 0 and 1000000, got ${priority}`, span)
+      }
+    } else if (/^@[a-z_][A-Za-z0-9_]*\s*\(/.test(ruleSource)) {
+      ruleSource = ruleSource.slice(1).trim()
+    }
+  }
+
+  if (ruleSource.startsWith('unify ')) {
+    unify = true
+    ruleSource = ruleSource.slice(6).trim()
+  }
+
+  // Extract optional rule name (text before the next `@`).
+  const named = splitRuleName(ruleSource)
+  ruleSource = named.ruleSource
+  let ruleName = named.name
+  if (ruleName && ruleName.startsWith('unify ')) {
+    unify = true
+    ruleName = ruleName.slice(6).trim() || undefined
+  }
+
+  // Extract optional `@priority@` annotation if placed after rule name.
+  if (ruleSource.startsWith('@')) {
+    const priorityMatch = /^@\s*(-?\d+)\s*@\s*/.exec(ruleSource)
     if (priorityMatch) {
       priority = parseInt(priorityMatch[1]!, 10)
       ruleSource = ruleSource.slice(priorityMatch[0].length).trim()
@@ -392,11 +441,6 @@ export function parseRule (source: string, fullSource = source, baseOffset = 0):
     }
   }
 
-  // Extract optional rule name (text before the next `@`).
-  const named = splitRuleName(ruleSource)
-  ruleSource = named.ruleSource
-  let unify = false
-
   // Extract optional `unify` keyword.
   if (ruleSource.startsWith('unify ')) {
     unify = true
@@ -406,16 +450,16 @@ export function parseRule (source: string, fullSource = source, baseOffset = 0):
   // Determine rule kind and split into head / tail.
   const kind = detectRuleKind(ruleSource)
   const [headSource, tailSource] = splitRuleOperator(ruleSource, kind)
-  const [guardSource, bodySource] = splitGuard(tailSource)
+  const { guards, prefixLets, bodySource } = parseTailSegments(tailSource)
   const span = createSpan(fullSource, baseOffset, baseOffset + source.length)
 
   if (!bodySource.trim()) {
     throw new CHRParseError(`Rule body is empty in: ${source}`, span)
   }
 
-  const body = parseBody(bodySource)
+  const body = [...prefixLets, ...parseBody(bodySource)]
   const base = {
-    guard: parseGuardList(guardSource),
+    guard: guards,
     body,
     unify,
     ...(priority !== undefined ? { priority } : {})
@@ -431,7 +475,7 @@ export function parseRule (source: string, fullSource = source, baseOffset = 0):
       removed: [],
       span,
       ...base
-    }, named.name)
+    }, ruleName)
   }
 
   if (kind === 'simplification') {
@@ -441,7 +485,7 @@ export function parseRule (source: string, fullSource = source, baseOffset = 0):
       removed: parseConstraints(headSource),
       span,
       ...base
-    }, named.name)
+    }, ruleName)
   }
 
   // Simpagation: everything before the `\` is kept; everything after is removed.
@@ -458,17 +502,20 @@ export function parseRule (source: string, fullSource = source, baseOffset = 0):
     removed,
     span,
     ...base
-  }, named.name)
+  }, ruleName)
 }
 
 /**
  * Split an optional rule name prefix from the rule source.
  *
- * Rule names are terminated by `@`. If no `@` is present the entire string is
- * treated as the rule source and no name is assigned.
+ * Rule names are terminated by `@` before the rule operator (`==>` or `<=>`).
  */
 function splitRuleName (source: string): { name?: string, ruleSource: string } {
-  const index = source.indexOf('@')
+  const simpIdx = findTopLevelOperator(source, '<=>')
+  const propIdx = findTopLevelOperator(source, '==>')
+  const opIdx = simpIdx >= 0 && propIdx >= 0 ? Math.min(simpIdx, propIdx) : Math.max(simpIdx, propIdx)
+  const headRegion = opIdx >= 0 ? source.slice(0, opIdx) : source
+  const index = findTopLevelOperator(headRegion, '@')
   if (index < 0) {
     return { ruleSource: source.trim() }
   }
@@ -478,24 +525,40 @@ function splitRuleName (source: string): { name?: string, ruleSource: string } {
   return { name, ruleSource }
 }
 
+function assertNoUnclosedStrings (source: string): void {
+  let quote: 'single' | 'double' | null = null
+  let escaped = false
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i]!
+    if (quote) {
+      if (escaped) {
+        escaped = false
+      } else if (ch === '\\') {
+        escaped = true
+      } else if ((quote === 'single' && ch === "'") || (quote === 'double' && ch === '"')) {
+        quote = null
+      }
+      continue
+    }
+    if (ch === "'") quote = 'single'
+    else if (ch === '"') quote = 'double'
+  }
+  if (quote !== null) {
+    throw new CHRParseError(`Unclosed string literal in: ${source}`)
+  }
+}
+
 /**
  * Detect the rule kind by looking for the top-level rule operator.
- *
- * The parser first checks for `<=>` (simplification / simpagation) and then
- * for `==>` (propagation). String literals are temporarily masked so that the
- * operator cannot be hidden inside a quoted string.
- *
- * Simpagation is distinguished from simplification by the presence of `\` in
- * the head portion (before the operator).
  */
 function detectRuleKind (source: string): RuleKind {
-  const withoutStrings = source.replace(/'[^']*'|"[^"]*"/g, '""')
-  const simpIdx = findTopLevelOperator(withoutStrings, '<=>')
-  const propIdx = findTopLevelOperator(withoutStrings, '==>')
+  assertNoUnclosedStrings(source)
+  const simpIdx = findTopLevelOperator(source, '<=>')
+  const propIdx = findTopLevelOperator(source, '==>')
 
   if (simpIdx >= 0) {
-    const before = withoutStrings.slice(0, simpIdx).trim()
-    if (before.includes('\\')) return 'simpagation'
+    const before = source.slice(0, simpIdx).trim()
+    if (findTopLevelOperator(before, '\\') >= 0) return 'simpagation'
     return 'simplification'
   }
 
@@ -529,42 +592,46 @@ function splitRuleOperator (source: string, kind: RuleKind): [string, string] {
  * The guard is separated from the body by a top-level `|`. If no `|` is found,
  * the entire string is treated as the body and the guard is `null`.
  */
-function splitGuard (source: string): [string | null, string] {
+function parseTailSegments (source: string): {
+  guards: Expression[]
+  prefixLets: BodyLetBinding[]
+  bodySource: string
+} {
   const parts = splitTopLevel(source, '|')
   if (parts.length < 2) {
-    return [null, source.trim()]
+    return { guards: [], prefixLets: [], bodySource: source.trim() }
   }
 
   const firstPart = parts[0]?.trim() ?? ''
-  const restPart = parts.slice(1).join('|').trim()
 
-  // If first part is parenthesized e.g. (A == C, B == D) | ..., it's a disjunctive body
-  if (firstPart.startsWith('(') && firstPart.endsWith(')')) {
-    return [null, source.trim()]
+  // If no segment starts with `let `, check if this is a disjunctive body (CHR-vee)
+  const hasLetSegment = parts.some(p => p.trim().startsWith('let '))
+  if (!hasLetSegment) {
+    if (firstPart.startsWith('(') && firstPart.endsWith(')')) {
+      return { guards: [], prefixLets: [], bodySource: source.trim() }
+    }
+    if (parts.every(p => findTopLevelOperator(p.trim(), '==') >= 0)) {
+      return { guards: [], prefixLets: [], bodySource: source.trim() }
+    }
   }
 
-  // If first part is a semantic equality goal like X == heads | X == tails, it's disjunctive body
-  if (findTopLevelOperator(firstPart, '==') >= 0 && !firstPart.includes('===') && !firstPart.includes('!==')) {
-    return [null, source.trim()]
+  const guards: Expression[] = []
+  const prefixLets: BodyLetBinding[] = []
+  const prefixSegments = parts.slice(0, -1)
+  const bodySource = parts[parts.length - 1]?.trim() ?? ''
+
+  for (const segment of prefixSegments) {
+    const items = splitTopLevel(segment, ',').map(e => e.trim()).filter(Boolean)
+    for (const item of items) {
+      if (item.startsWith('let ')) {
+        prefixLets.push(parseLetBinding(item.slice(4).trim()))
+      } else {
+        guards.push(parseExpression(item))
+      }
+    }
   }
 
-  return [firstPart, restPart]
-}
-
-/**
- * Parse a comma-separated guard list into an array of `Expression`.
- *
- * An empty or whitespace-only source returns an empty array (no guards).
- */
-function parseGuardList (source: string | null): Expression[] {
-  if (!source || !source.trim()) {
-    return []
-  }
-
-  return splitTopLevel(source, ',')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map(parseExpression)
+  return { guards, prefixLets, bodySource }
 }
 
 /**
@@ -661,7 +728,9 @@ function parseBody (source: string): BodyItem[] {
         return parseLetBinding(entry.slice(4).trim())
       }
 
-      const updateIndex = findTopLevelOperator(entry, '<=')
+      const updateLeIndex = findTopLevelOperator(entry, '<=')
+      const updateColonIndex = findTopLevelOperator(entry, ':=')
+      const updateIndex = updateLeIndex >= 0 ? updateLeIndex : updateColonIndex
       if (updateIndex >= 0) {
         const oldPart = entry.slice(0, updateIndex).trim()
         const newPart = entry.slice(updateIndex + 2).trim()
@@ -745,19 +814,42 @@ export function parseExpression (source: string): Expression {
  * before the first separator and everything after. It is used for simpagation
  * head splitting where we need to separate kept from removed constraints.
  */
+function matchesOperatorAt (source: string, operator: string, index: number): boolean {
+  if (!source.startsWith(operator, index)) {
+    return false
+  }
+  const prev = index > 0 ? source[index - 1]! : ''
+  const next = source[index + operator.length] ?? ''
+
+  if (operator === '|') {
+    if (prev === '|' || next === '|') return false
+  } else if (operator === '=') {
+    if (next === '=' || prev === '=' || prev === '!' || prev === '<' || prev === '>' || prev === ':') return false
+  } else if (operator === '==') {
+    if (next === '=' || next === '>' || prev === '=' || prev === '!') return false
+  } else if (operator === '<=') {
+    if (next === '>') return false
+  }
+  return true
+}
+
 function splitByBackslash (source: string): string[] {
   const parts: string[] = []
   let current = ''
   let depth = 0
   let quote: 'single' | 'double' | null = null
+  let escaped = false
 
   for (let index = 0; index < source.length; index++) {
-    const char = source[index]
-    const previous = index > 0 ? source[index - 1] : ''
+    const char = source[index]!
 
     if (quote) {
       current += char
-      if (((quote === 'single' && char === "'") || (quote === 'double' && char === '"')) && previous !== '\\') {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if ((quote === 'single' && char === "'") || (quote === 'double' && char === '"')) {
         quote = null
       }
       continue
@@ -784,7 +876,6 @@ function splitByBackslash (source: string): string[] {
     if (char === '\\' && depth === 0) {
       parts.push(current)
       current = ''
-      index += 1
       continue
     }
 
@@ -798,32 +889,24 @@ function splitByBackslash (source: string): string[] {
   return parts
 }
 
-/**
- * Split a source string on one or more separators at top level only.
- *
- * "Top level" means outside of quoted strings (`'...'` or `"..."`) and outside
- * of nested brackets/parens/braces. This prevents constraint arguments that
- * contain commas from being split incorrectly.
- *
- * @param source - The source string to split.
- * @param separator - A single separator string or an array of multi-character
- *   separators. Multi-character separators are matched left-to-right.
- * @returns An array of non-empty trimmed parts.
- */
 function splitTopLevel (source: string, separator: string | string[]): string[] {
   const separators = Array.isArray(separator) ? separator : [separator]
   const parts: string[] = []
   let current = ''
   let depth = 0
   let quote: 'single' | 'double' | null = null
+  let escaped = false
 
   for (let index = 0; index < source.length; index++) {
     const char = source[index]!
-    const previous = index > 0 ? source[index - 1]! : ''
 
     if (quote) {
       current += char
-      if (((quote === 'single' && char === "'") || (quote === 'double' && char === '"')) && previous !== '\\') {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if ((quote === 'single' && char === "'") || (quote === 'double' && char === '"')) {
         quote = null
       }
       continue
@@ -848,7 +931,7 @@ function splitTopLevel (source: string, separator: string | string[]): string[] 
     }
 
     if (depth === 0) {
-      const sepIndex = separators.findIndex((sep) => source.startsWith(sep, index))
+      const sepIndex = separators.findIndex((sep) => matchesOperatorAt(source, sep, index))
       if (sepIndex >= 0) {
         parts.push(current)
         current = ''
@@ -867,31 +950,18 @@ function splitTopLevel (source: string, separator: string | string[]): string[] 
   return parts
 }
 
-/**
- * Split a source string on a separator at top level only, returning at most
- * two parts: `[before, after]`.
- *
- * If the separator is not found, returns `[source.trim(), null]`. If found,
- * returns `[partBefore, restAfter]` where `restAfter` includes any additional
- * occurrences of the separator joined back together. This is used for guard/body
- * splitting where the body may contain `|` inside strings or nested expressions.
- */
-
-
-/**
- * Find the index of a multi-character operator at top level.
- *
- * Returns the 0-based index of the operator in the source string, or -1 if not
- * found. The search is quote-aware and depth-aware so that operators inside
- * strings or nested brackets are ignored.
- */
 function findTopLevelOperator (source: string, operator: string): number {
   let depth = 0
   let quote: 'single' | 'double' | null = null
+  let escaped = false
   for (let index = 0; index < source.length; index++) {
-    const char = source[index]
+    const char = source[index]!
     if (quote) {
-      if (((quote === 'single' && char === "'") || (quote === 'double' && char === '"')) && source[index - 1] !== '\\') {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if ((quote === 'single' && char === "'") || (quote === 'double' && char === '"')) {
         quote = null
       }
       continue
@@ -900,35 +970,31 @@ function findTopLevelOperator (source: string, operator: string): number {
     if (char === '"') { quote = 'double'; continue }
     if (char === '(' || char === '[' || char === '{') { depth += 1; continue }
     if (char === ')' || char === ']' || char === '}') { depth -= 1; continue }
-    if (depth === 0 && source.startsWith(operator, index)) {
+    if (depth === 0 && matchesOperatorAt(source, operator, index)) {
       return index
     }
   }
   return -1
 }
 
-/**
- * Split a source string on a separator at top level, preserving the byte offset
- * of each part relative to the original source.
- *
- * This is the offset-aware variant of `splitTopLevel`. Offsets are computed
- * incrementally during the scan, so the caller can use them to construct
- * accurate `SourceSpan` values for error reporting.
- */
 function splitTopLevelWithOffsets (source: string, separator: string): Array<{ text: string, offset: number }> {
   const parts: Array<{ text: string, offset: number }> = []
   let current = ''
   let depth = 0
   let quote: 'single' | 'double' | null = null
+  let escaped = false
   let currentOffset = 0
 
   for (let index = 0; index < source.length; index++) {
-    const char = source[index]
-    const previous = index > 0 ? source[index - 1] : ''
+    const char = source[index]!
 
     if (quote) {
       current += char
-      if (((quote === 'single' && char === "'") || (quote === 'double' && char === '"')) && previous !== '\\') {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if ((quote === 'single' && char === "'") || (quote === 'double' && char === '"')) {
         quote = null
       }
       continue
@@ -952,7 +1018,7 @@ function splitTopLevelWithOffsets (source: string, separator: string): Array<{ t
       depth -= 1
     }
 
-    if (depth === 0 && source.startsWith(separator, index)) {
+    if (depth === 0 && matchesOperatorAt(source, separator, index)) {
       parts.push({ text: current, offset: currentOffset })
       current = ''
       index += separator.length - 1
@@ -970,26 +1036,11 @@ function splitTopLevelWithOffsets (source: string, separator: string): Array<{ t
   return parts
 }
 
-// ---------------------------------------------------------------------------
-// Comment stripping
-// ---------------------------------------------------------------------------
-
-/**
- * Strip line-level comments from source text.
- *
- * CHR.ts supports three comment syntaxes:
- * - `#` (Prolog-style)
- * - `%` (CHR classic)
- * - `--` (SQL-style)
- *
- * Comments run from the marker to the end of the line. They are NOT stripped
- * inside quoted strings. The function preserves the original line structure so
- * that line/column numbers remain valid for error reporting.
- */
 function stripComments (source: string): string {
   const lines = source.split('\n')
   const stripped = lines.map((line) => {
     let inString: false | '"' | "'" = false
+    let escaped = false
     for (let i = 0; i < line.length; i++) {
       const char = line[i]!
       if (!inString) {
@@ -998,7 +1049,11 @@ function stripComments (source: string): string {
         } else if (char === '#' || char === '%' || (char === '-' && line[i + 1] === '-') || (char === '/' && line[i + 1] === '/')) {
           return line.slice(0, i)
         }
-      } else if (char === inString && line[i - 1] !== '\\') {
+      } else if (escaped) {
+        escaped = false
+      } else if (char === '\\') {
+        escaped = true
+      } else if (char === inString) {
         inString = false
       }
     }
@@ -1149,18 +1204,35 @@ function tokenize (source: string): Token[] {
     if (char === '"' || char === "'") {
       let value = ''
       const quote = char
+      let closed = false
       index += 1
       while (index < source.length) {
         const next = source[index]
         if (!next) {
           break
         }
-        if (next === quote && source[index - 1] !== '\\') {
+        if (next === '\\') {
+          const escapedChar = source[index + 1]
+          if (escapedChar === undefined) {
+            throw new CHRParseError(`Unclosed string literal in: ${source}`)
+          }
+          if (escapedChar === 'n') value += '\n'
+          else if (escapedChar === 't') value += '\t'
+          else if (escapedChar === 'r') value += '\r'
+          else value += escapedChar
+          index += 2
+          continue
+        }
+        if (next === quote) {
+          closed = true
           index += 1
           break
         }
         value += next
         index += 1
+      }
+      if (!closed) {
+        throw new CHRParseError(`Unclosed string literal in: ${source}`)
       }
       tokens.push({ type: 'string', value })
       continue

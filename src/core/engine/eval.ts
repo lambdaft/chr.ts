@@ -32,7 +32,8 @@
 import type { Expression, RuleNode } from '../ast.js'
 import type { ConstraintRecord } from '../constraint.js'
 import { CHRExecutionError, CHRGuardError } from '../errors.js'
-import { evaluateBinary } from '../utils.js'
+import { evaluateBinary, numeric } from '../utils.js'
+import { BuiltinFunctions } from '../builtins.js'
 import type { ConstraintStore } from '../store.js'
 import type { CHREngine } from '../engine.js'
 
@@ -101,12 +102,24 @@ export async function evaluateExpression (
       return !operand
     }
     if (expr.operator === '-') {
-      return -(operand as number)
+      return -numeric(operand)
     }
     throw new CHRExecutionError(`Unknown unary operator ${expr.operator}`, rule.span)
   }
 
   if (expr.type === 'binary') {
+    if (expr.operator === '&&') {
+      const left = await evaluateExpression(deps, expr.left, rule, matched, bindings)
+      if (!left) return false
+      const right = await evaluateExpression(deps, expr.right, rule, matched, bindings)
+      return Boolean(right)
+    }
+    if (expr.operator === '||') {
+      const left = await evaluateExpression(deps, expr.left, rule, matched, bindings)
+      if (left) return true
+      const right = await evaluateExpression(deps, expr.right, rule, matched, bindings)
+      return Boolean(right)
+    }
     if (expr.operator === 'in') {
       const left = await evaluateExpression(deps, expr.left, rule, matched, bindings)
       const right = await evaluateExpression(deps, expr.right, rule, matched, bindings)
@@ -121,10 +134,11 @@ export async function evaluateExpression (
     return evaluateBinary(expr.operator, left, right)
   }
 
-  const fn = deps.functions.get(expr.callee)
+  const fnMap = deps.functions instanceof Map ? deps.functions : new Map(deps.functions as unknown as Iterable<[string, (ctx: unknown, ...args: unknown[]) => unknown]>)
+  const fn = fnMap.get(expr.callee) ?? (deps.engine ? (BuiltinFunctions[expr.callee] as ((ctx: unknown, ...args: unknown[]) => unknown) | undefined) : undefined)
   if (!fn) {
     throw new CHRExecutionError(
-      `Unknown host function: ${expr.callee}${deps.suggestSimilar(expr.callee, deps.functions)}`,
+      `Unknown host function: ${expr.callee}${deps.suggestSimilar(expr.callee, fnMap)}`,
       rule.span
     )
   }
@@ -143,6 +157,9 @@ export async function evaluateExpression (
         rule.span,
         error as Error
       )
+    }
+    if (error instanceof CHRExecutionError) {
+      throw error
     }
     throw new CHRExecutionError(
       `Host function ${expr.callee} threw in rule ${rule.name ?? 'anonymous'}: ${(error as Error).message}`,
@@ -201,11 +218,18 @@ export async function withTimeout<T> (
     return promise as T
   }
 
+  let timer: ReturnType<typeof setTimeout> | undefined
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => {
-      reject(new Error(`Host function ${name} timed out after ${deps.hostFunctionTimeout}ms in rule ${rule.name ?? 'anonymous'}`))
+    timer = setTimeout(() => {
+      reject(new CHRExecutionError(`Host function ${name} timed out after ${deps.hostFunctionTimeout}ms in rule ${rule.name ?? 'anonymous'}`, rule.span))
     }, deps.hostFunctionTimeout)
   })
 
-  return Promise.race([promise as Promise<T>, timeoutPromise])
+  try {
+    return await Promise.race([promise as Promise<T>, timeoutPromise])
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer)
+    }
+  }
 }

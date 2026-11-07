@@ -2,16 +2,17 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { CHREngine, defineHostModule, BuiltinsModule } from '../dist/index.js'
 
-test('registerHostModules registers multiple modules at once', () => {
+test('registerHostModules registers multiple modules at once', async () => {
   const engine = new CHREngine()
   const mod1 = defineHostModule({ functions: { fn1: () => true } })
   const mod2 = defineHostModule({ functions: { fn2: () => true } })
 
   engine.registerHostModules({ mod1, mod2 })
 
-  engine.addRules('step @ a ==> fn1() | fn2();')
-  engine.assert('a', [])
+  engine.addRules('import host mod1; import host mod2; step @ a ==> fn1() | ok;')
+  await engine.assert('a', [])
   assert.equal(engine.store.lookup('a', 0).length, 1)
+  assert.equal(engine.store.lookup('ok', 0).length, 1)
 })
 
 test('registerHostModule throws on duplicate name', () => {
@@ -24,21 +25,21 @@ test('registerHostModule throws on duplicate name', () => {
   }, /already registered/)
 })
 
-test('registerFunction auto-registers declaration for strict mode', () => {
+test('registerFunction auto-registers declaration for strict mode', async () => {
   const engine = new CHREngine({ strictHostDeclarations: true })
   engine.registerFunction('myFunc', () => true)
 
   engine.addRules('step @ a ==> myFunc() | ok;')
-  engine.assert('a', [])
+  await engine.assert('a', [])
   assert.equal(engine.store.lookup('ok', 0).length, 1)
 })
 
-test('registerAction auto-registers declaration for strict mode', () => {
+test('registerAction auto-registers declaration for strict mode', async () => {
   const engine = new CHREngine({ strictHostDeclarations: true })
   engine.registerAction('myAction', () => {})
 
   engine.addRules('step @ a ==> true | !myAction();')
-  engine.assert('a', [])
+  await engine.assert('a', [])
   assert.equal(engine.store.lookup('a', 0).length, 1)
 })
 
@@ -76,7 +77,7 @@ test('validate with import host and undeclared function catches error', () => {
   assert.ok(result.executionErrors.length > 0)
 })
 
-test('registerHostModule then import host works in addRules', () => {
+test('registerHostModule then import host works in addRules', async () => {
   const engine = new CHREngine()
   engine.registerHostModule('math', defineHostModule({
     functions: { double: (_ctx, x) => x * 2 }
@@ -87,12 +88,12 @@ test('registerHostModule then import host works in addRules', () => {
     step @ a(X) ==> true | result(double(X));
   `)
 
-  engine.assert('a', [5])
+  await engine.assert('a', [5])
   assert.equal(engine.store.lookup('result', 1).length, 1)
   assert.equal(engine.store.lookup('result', 1)[0].args[0], 10)
 })
 
-test('registerBuiltins also registers as host module', () => {
+test('registerBuiltins also registers as host module', async () => {
   const engine = new CHREngine()
   engine.registerBuiltins()
 
@@ -101,7 +102,7 @@ test('registerBuiltins also registers as host module', () => {
     step @ a(X) ==> gt(X, 0) | b(X);
   `)
 
-  engine.assert('a', [5])
+  await engine.assert('a', [5])
   assert.equal(engine.store.lookup('b', 1).length, 1)
 })
 
@@ -115,7 +116,7 @@ test('import host with non-existent module throws', () => {
   }, /Unknown host module/)
 })
 
-test('multiple import host statements accumulate', () => {
+test('multiple import host statements accumulate', async () => {
   const engine = new CHREngine()
   engine.registerHostModule('mod1', defineHostModule({ functions: { fn1: () => true } }))
   engine.registerHostModule('mod2', defineHostModule({ functions: { fn2: () => true } }))
@@ -123,14 +124,15 @@ test('multiple import host statements accumulate', () => {
   engine.addRules(`
     import host mod1;
     import host mod2;
-    step @ a ==> fn1() | fn2();
+    step @ a ==> fn1() && fn2() | ok;
   `)
 
-  engine.assert('a', [])
+  await engine.assert('a', [])
   assert.equal(engine.store.lookup('a', 0).length, 1)
+  assert.equal(engine.store.lookup('ok', 0).length, 1)
 })
 
-test('registerFunctions and registerActions batch registration', () => {
+test('registerFunctions and registerActions batch registration', async () => {
   const engine = new CHREngine()
   engine.registerFunctions({ f1: () => true, f2: () => true })
   engine.registerActions({ a1: () => {}, a2: () => {} })
@@ -141,11 +143,11 @@ test('registerFunctions and registerActions batch registration', () => {
     step @ x ==> f1() | !a1();
   `)
 
-  engine.assert('x', [])
+  await engine.assert('x', [])
   assert.equal(engine.store.lookup('x', 0).length, 1)
 })
 
-test('import host with actions in body', () => {
+test('import host with actions in body', async () => {
   const engine = new CHREngine()
   const logs = []
   engine.registerHostModule('logger', defineHostModule({
@@ -157,7 +159,7 @@ test('import host with actions in body', () => {
     step @ a(X) ==> true | !log(X);
   `)
 
-  engine.assert('a', ['hello'])
+  await engine.assert('a', ['hello'])
   assert.equal(logs.length, 1)
   assert.equal(logs[0], 'hello')
 })
@@ -191,7 +193,7 @@ test('strictHostDeclarations with imported module auto-satisfies declarations', 
   assert.ok(result.ok)
 })
 
-test('registerHostModule does not override existing module functions', () => {
+test('registerHostModule does not override existing module functions', async () => {
   const engine = new CHREngine()
   const mod1 = defineHostModule({ functions: { shared: (_ctx) => 'first' } })
   const mod2 = defineHostModule({ functions: { shared: (_ctx) => 'second' } })
@@ -202,11 +204,11 @@ test('registerHostModule does not override existing module functions', () => {
   engine.addRules(`
     import host first;
     import host second;
-    step @ a ==> shared() | r1;
-    step @ a ==> shared() | r2;
+    step1 @ a ==> shared() | r1;
+    step2 @ a ==> shared() | r2;
   `)
 
-  engine.assert('a', [])
+  await engine.assert('a', [])
   const r1 = engine.store.lookup('r1', 0)
   const r2 = engine.store.lookup('r2', 0)
   assert.equal(r1.length, 1)

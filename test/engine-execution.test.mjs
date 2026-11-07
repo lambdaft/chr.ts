@@ -40,8 +40,8 @@ test('assertMany runs fixpoint once after all assertions', async () => {
 
 test('assertMany with mixed constraints', async () => {
   const engine = new CHREngine()
-  engine.addRules('step @ a ==> b;')
-  engine.addRules('step2 @ b ==> c;')
+  engine.addRules('step @ a(X) ==> b(X);')
+  engine.addRules('step2 @ b(X) ==> c(X);')
 
   await engine.assertMany([
     { name: 'a', args: [1] },

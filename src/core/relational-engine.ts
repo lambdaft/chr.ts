@@ -27,7 +27,10 @@ export class RelationalEngine {
   readonly rules: RuleNode[]
 
   constructor (rules: RuleNode[] = []) {
-    this.rules = [...rules]
+    this.rules = rules.map((r, idx) => ({
+      ...r,
+      name: r.name ?? `rule_${idx}`
+    }))
   }
 
   /**
@@ -35,7 +38,12 @@ export class RelationalEngine {
    */
   addRules (source: string): this {
     const parsed = parseProgram(source)
-    this.rules.push(...parsed.rules)
+    for (const rule of parsed.rules) {
+      this.rules.push({
+        ...rule,
+        name: rule.name ?? `rule_${this.rules.length}`
+      })
+    }
     return this
   }
 
@@ -44,7 +52,12 @@ export class RelationalEngine {
    */
   loadProgram (source: string): this {
     const program = parseProgram(source)
-    this.rules.push(...program.rules)
+    for (const rule of program.rules) {
+      this.rules.push({
+        ...rule,
+        name: rule.name ?? `rule_${this.rules.length}`
+      })
+    }
     return this
   }
 

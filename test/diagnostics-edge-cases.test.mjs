@@ -137,7 +137,8 @@ test('nested error cause chain from action through engine', async () => {
   assert.ok(caught)
   assert.match(caught.message, /Host action outer threw/)
   assert.ok(caught.cause)
-  assert.equal(caught.cause.message, 'original')
+  assert.equal(caught.cause.message, 'wrapped')
+  assert.equal(caught.cause.cause.message, 'original')
 })
 
 test('async host function error produces cause chain', async () => {
@@ -145,7 +146,7 @@ test('async host function error produces cause chain', async () => {
   engine.registerFunction('asyncFail', async () => {
     throw new Error('async original')
   })
-  engine.addRules('crash @ a() ==> asyncFail() | ok;')
+  engine.addRules('crash @ a() ==> true | ok(asyncFail());')
 
   let caught
   try {
@@ -166,7 +167,7 @@ test('host function timeout produces error without cause', async () => {
     await new Promise((resolve) => setTimeout(resolve, 300))
     return true
   })
-  engine.addRules('hang @ a(X) ==> hang() | ok;')
+  engine.addRules('hang @ a(X) ==> true | ok(hang());')
 
   let caught
   try {

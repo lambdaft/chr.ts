@@ -87,7 +87,7 @@ export class SearchState {
    * Record a rule firing in history.
    */
   recordHistory (ruleName: string, constraintIds: readonly number[]): SearchState {
-    const key = `${ruleName}:${[...constraintIds].sort((a, b) => a - b).join(',')}`
+    const key = `${ruleName}:${constraintIds.join(',')}`
     const newHistory = new Set(this.history)
     newHistory.add(key)
     return this.with({ history: newHistory })
@@ -97,7 +97,7 @@ export class SearchState {
    * Check if a rule has already fired on the given combination of constraints.
    */
   hasFired (ruleName: string, constraintIds: readonly number[]): boolean {
-    const key = `${ruleName}:${[...constraintIds].sort((a, b) => a - b).join(',')}`
+    const key = `${ruleName}:${constraintIds.join(',')}`
     return this.history.has(key)
   }
 

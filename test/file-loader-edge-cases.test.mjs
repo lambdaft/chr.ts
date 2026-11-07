@@ -1,13 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { CHREngine } from '../dist/index.js'
+import { CHREngine, BuiltinsModule } from '../dist/index.js'
 import { readFileSync, unlink, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const TEST_CHR_PATH = join(process.cwd(), 'test-temp-rules.chr')
 
 test('engine load reads and parses chr file', () => {
-  writeFileSync(TEST_CHR_PATH, 'constraint a/1;\nstep @ a ==> b;')
+  writeFileSync(TEST_CHR_PATH, 'constraint a/0;\nstep @ a ==> b;')
   const engine = new CHREngine()
   engine.load(TEST_CHR_PATH)
   assert.equal(engine.getRules().length, 1)
@@ -59,8 +59,7 @@ test('engine load with unification rules', () => {
   assert.equal(rules[0].unify, true)
 })
 
-test('engine load with host import', () => {
-  const { BuiltinsModule } = require('../dist/index.js')
+test('engine load with host import', async () => {
   writeFileSync(TEST_CHR_PATH, `
     import host builtins;
     step @ a(X) ==> gt(X, 0) | b(X);
@@ -69,12 +68,11 @@ test('engine load with host import', () => {
   engine.registerHostModule('builtins', BuiltinsModule)
   engine.load(TEST_CHR_PATH)
 
-  engine.assert('a', [5])
+  await engine.assert('a', [5])
   assert.equal(engine.store.lookup('b', 1).length, 1)
 })
 
-test('engine load with import host builtins directly', () => {
-  const { BuiltinsModule } = require('../dist/index.js')
+test('engine load with import host builtins directly', async () => {
   writeFileSync(TEST_CHR_PATH, `
     import host builtins;
     step @ a(X) ==> gt(X, 0) | b(X);
@@ -83,14 +81,14 @@ test('engine load with import host builtins directly', () => {
   engine.registerBuiltins()
   engine.load(TEST_CHR_PATH)
 
-  engine.assert('a', [5])
+  await engine.assert('a', [5])
   assert.equal(engine.store.lookup('b', 1).length, 1)
 })
 
 test('engine load file with comments', () => {
   writeFileSync(TEST_CHR_PATH, `
     -- load test
-    constraint a/1;
+    constraint a/0;
     -- rule below
     step @ a ==> b;
   `)
@@ -136,9 +134,9 @@ test('engine load file with strictHostDeclarations and undeclared call', () => {
   }, /not declared/)
 })
 
-test.teardown(() => {
+test.after(() => {
   try {
-    unlink(TEST_CHR_PATH)
+    unlink(TEST_CHR_PATH, () => {})
   } catch {
     // ignore cleanup errors
   }

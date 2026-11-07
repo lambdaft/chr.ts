@@ -31,15 +31,13 @@ import { CHREngine } from './engine.js'
 /**
  * Options for the `createEngine` convenience factory.
  */
-export interface LoadCHROptions {
+export interface LoadCHROptions extends CHREngineOptions {
   /** The `.chr` source string to load. */
-  source: string
+  source?: string
   /** Optional host module to register before loading rules. */
   host?: HostModule
   /** If true, register the built-in host module. */
   builtins?: boolean
-  /** Override the default maximum rule firings. */
-  maxRuleFirings?: number
 }
 
 /**
@@ -49,22 +47,19 @@ export interface LoadCHROptions {
  * @returns A fully initialized `CHREngine` ready for constraint assertion.
  */
 export function createEngine (options: LoadCHROptions = { source: '' }): CHREngine {
-  const engineOpts: CHREngineOptions = {}
-  if (options.maxRuleFirings !== undefined) {
-    engineOpts.maxRuleFirings = options.maxRuleFirings
-  }
+  const { source = '', host, builtins, ...engineOpts } = options
   const engine = new CHREngine(engineOpts)
 
-  if (options.builtins) {
+  if (builtins) {
     engine.registerBuiltins()
   }
 
-  if (options.host) {
-    engine.registerHost(options.host)
+  if (host) {
+    engine.registerHost(host)
   }
 
-  if (options.source.trim()) {
-    engine.addRules(options.source)
+  if (source.trim()) {
+    engine.addRules(source)
   }
 
   return engine

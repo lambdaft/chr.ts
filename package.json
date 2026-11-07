@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "bundle": "esbuild dist/index.js --bundle --platform=node --format=esm --outfile=dist/bundle.mjs --minify",
-    "test": "npm run build && node --test test/**/*.test.mjs",
+    "test": "npm run build && node --test \"test/**/*.test.mjs\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf dist",
     "prepare": "npm run build"

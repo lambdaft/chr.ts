@@ -437,9 +437,6 @@ function toExpression (val: unknown): Expression {
   if (val && typeof val === 'object' && 'type' in (val as object)) {
     return val as Expression
   }
-  if (typeof val === 'string' && /^[A-Z_][A-Za-z0-9_]*$/.test(val)) {
-    return { type: 'variable', name: val }
-  }
   if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean' || val === null) {
     return { type: 'literal', value: val }
   }

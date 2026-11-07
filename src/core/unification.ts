@@ -72,29 +72,91 @@ export function unifyTerm (
     return value.value === rawPattern ? subst : null
   }
 
-  if (isCall(pattern) && isCall(value)) {
-    if (pattern.callee !== value.callee || pattern.args.length !== value.args.length) {
-      return null
+  if (isCall(pattern)) {
+    if (isCall(value)) {
+      if (pattern.callee !== value.callee || pattern.args.length !== value.args.length) {
+        return null
+      }
+      let currentSubst: Substitution | null = subst
+      for (let i = 0; i < pattern.args.length; i++) {
+        const p = pattern.args[i]
+        const v = value.args[i]
+        if (!p || v === undefined) return null
+        currentSubst = unifyTerm(p, v, currentSubst)
+        if (!currentSubst) return null
+      }
+      return currentSubst
     }
+    if (isFunctor(value)) {
+      if (pattern.callee !== value.name || pattern.args.length !== value.args.length) {
+        return null
+      }
+      let currentSubst: Substitution | null = subst
+      for (let i = 0; i < pattern.args.length; i++) {
+        const p = pattern.args[i]
+        const v = value.args[i]
+        if (!p || v === undefined) return null
+        currentSubst = unifyTerm(p, v, currentSubst)
+        if (!currentSubst) return null
+      }
+      return currentSubst
+    }
+    return null
+  }
+
+  if (isFunctor(pattern)) {
+    const patName = pattern.name
+    const patArgs = pattern.args
+    if (isFunctor(value)) {
+      if (patName !== value.name || patArgs.length !== value.args.length) return null
+      let currentSubst: Substitution | null = subst
+      for (let i = 0; i < patArgs.length; i++) {
+        const p = patArgs[i]
+        const v = value.args[i]
+        if (p === undefined || v === undefined) return null
+        currentSubst = unifyTerm(toExpression(p), v, currentSubst)
+        if (!currentSubst) return null
+      }
+      return currentSubst
+    }
+    if (isCall(value)) {
+      if (patName !== value.callee || patArgs.length !== value.args.length) return null
+      let currentSubst: Substitution | null = subst
+      for (let i = 0; i < patArgs.length; i++) {
+        const p = patArgs[i]
+        const v = value.args[i]
+        if (p === undefined || v === undefined) return null
+        currentSubst = unifyTerm(toExpression(p), v, currentSubst)
+        if (!currentSubst) return null
+      }
+      return currentSubst
+    }
+    return null
+  }
+
+  if (isArray(pattern)) {
+    const valElements = isArray(value) ? value.elements : (Array.isArray(value) ? value : null)
+    if (!valElements || pattern.elements.length !== valElements.length) return null
     let currentSubst: Substitution | null = subst
-    for (let i = 0; i < pattern.args.length; i++) {
-      const p = pattern.args[i]
-      const v = value.args[i]
-      if (!p || !v) return null
+    for (let i = 0; i < pattern.elements.length; i++) {
+      const p = pattern.elements[i]
+      const v = valElements[i]
+      if (!p || v === undefined) return null
       currentSubst = unifyTerm(p, v, currentSubst)
       if (!currentSubst) return null
     }
     return currentSubst
   }
 
-  if (isArray(pattern) && isArray(value)) {
-    if (pattern.elements.length !== value.elements.length) return null
+  if (Array.isArray(pattern)) {
+    const valElements = isArray(value) ? value.elements : (Array.isArray(value) ? value : null)
+    if (!valElements || pattern.length !== valElements.length) return null
     let currentSubst: Substitution | null = subst
-    for (let i = 0; i < pattern.elements.length; i++) {
-      const p = pattern.elements[i]
-      const v = value.elements[i]
-      if (!p || !v) return null
-      currentSubst = unifyTerm(p, v, currentSubst)
+    for (let i = 0; i < pattern.length; i++) {
+      const p = pattern[i]
+      const v = valElements[i]
+      if (p === undefined || v === undefined) return null
+      currentSubst = unifyTerm(toExpression(p), v, currentSubst)
       if (!currentSubst) return null
     }
     return currentSubst
@@ -115,16 +177,17 @@ function isCall (val: unknown): val is CallExpression {
   return typeof val === 'object' && val !== null && (val as { type?: string }).type === 'call'
 }
 
+function isFunctor (val: unknown): val is { type: 'functor', name: string, args: unknown[] } {
+  return typeof val === 'object' && val !== null && (val as { type?: string }).type === 'functor'
+}
+
 function isArray (val: unknown): val is ArrayExpression {
   return typeof val === 'object' && val !== null && (val as { type?: string }).type === 'array'
 }
 
-function toExpression (val: unknown): Expression {
+export function toExpression (val: unknown): Expression {
   if (val && typeof val === 'object' && 'type' in (val as object)) {
     return val as Expression
-  }
-  if (typeof val === 'string' && /^[A-Z_][A-Za-z0-9_]*$/.test(val)) {
-    return { type: 'variable', name: val }
   }
   if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean' || val === null) {
     return { type: 'literal', value: val }
@@ -151,12 +214,45 @@ function unifyVariable (
   if (name === '_') {
     return subst
   }
+  if (isVariable(value) && value.name === '_') {
+    return subst
+  }
+  if (isVariable(value) && value.name === name) {
+    return subst
+  }
 
   const existing = subst.get(name)
 
   if (existing !== undefined) {
-    if (typeof existing === 'object' && existing !== null && (existing as { type: string }).type === 'variable') {
-      return unifyVariable((existing as VariableExpression).name, value, subst)
+    if (isVariable(existing)) {
+      if (isVariable(value)) {
+        let rootA = existing.name
+        let depthA = 0
+        while (depthA < 100) {
+          const nextA = subst.get(rootA)
+          if (isVariable(nextA)) {
+            rootA = nextA.name
+            depthA++
+          } else {
+            break
+          }
+        }
+        let rootB = value.name
+        let depthB = 0
+        while (depthB < 100) {
+          const nextB = subst.get(rootB)
+          if (isVariable(nextB)) {
+            rootB = nextB.name
+            depthB++
+          } else {
+            break
+          }
+        }
+        if (rootA === rootB && subst.get(rootA) === undefined) {
+          return subst
+        }
+      }
+      return unifyVariable(existing.name, value, subst)
     }
     return unifyTerm(toExpression(existing), value, subst)
   }
@@ -194,24 +290,33 @@ function unifyVariable (
  *
  * @returns `true` if the variable occurs in the value (cycle detected).
  */
-function occursIn (name: string, value: unknown, subst: Substitution): boolean {
+export function occursIn (name: string, value: unknown, subst: Substitution, visited = new Set<string>()): boolean {
   if (typeof value === 'object' && value !== null) {
     if ((value as { type: string }).type === 'variable') {
       const varName = (value as VariableExpression).name
       if (varName === name) return true
+      if (visited.has(varName)) return false
+      visited.add(varName)
       const resolved = subst.get(varName)
       if (resolved !== undefined) {
-        return occursIn(name, resolved, subst)
+        return occursIn(name, resolved, subst, visited)
       }
     }
     if ((value as { type: string }).type === 'call') {
       const callVal = value as CallExpression
-      return callVal.args.some(arg => occursIn(name, arg, subst))
+      return callVal.args.some(arg => occursIn(name, arg, subst, visited))
+    }
+    if ((value as { type: string }).type === 'functor') {
+      const funcVal = value as unknown as { args: unknown[] }
+      return funcVal.args.some(arg => occursIn(name, arg, subst, visited))
     }
     if ((value as { type: string }).type === 'array') {
       const arrVal = value as ArrayExpression
-      return arrVal.elements.some(elem => occursIn(name, elem, subst))
+      return arrVal.elements.some(elem => occursIn(name, elem, subst, visited))
     }
+  }
+  if (Array.isArray(value)) {
+    return value.some(elem => occursIn(name, elem, subst, visited))
   }
   return false
 }
@@ -269,11 +374,64 @@ export function resolveVariable (name: string, subst: Substitution): unknown {
       if ((resolved as { type: string }).type === 'literal') {
         return (resolved as LiteralExpression).value
       }
+      if ((resolved as { type: string }).type === 'call') {
+        const callVal = resolved as CallExpression
+        return {
+          ...callVal,
+          args: callVal.args.map(arg => resolveTerm(arg, subst, depth + 1))
+        }
+      }
+      if ((resolved as { type: string }).type === 'functor') {
+        const funcVal = resolved as unknown as { type: 'functor', name: string, args: unknown[] }
+        return {
+          ...funcVal,
+          args: funcVal.args.map(arg => resolveTerm(arg, subst, depth + 1))
+        }
+      }
+      if ((resolved as { type: string }).type === 'array') {
+        const arrVal = resolved as ArrayExpression
+        return arrVal.elements.map(elem => resolveTerm(elem, subst, depth + 1))
+      }
+      if (Array.isArray(resolved)) {
+        return resolved.map(elem => resolveTerm(elem, subst, depth + 1))
+      }
     }
     return resolved
   }
 
   throw new Error(`Substitution cycle detected: maximum depth ${MAX_SUBSTITUTION_DEPTH} exceeded for variable ${name}`)
+}
+
+function resolveTerm (term: unknown, subst: Substitution, depth: number): unknown {
+  if (depth > 100) {
+    throw new Error('Substitution cycle detected: maximum depth 100 exceeded')
+  }
+  if (isVariable(term)) {
+    const resolved = resolveVariable(term.name, subst)
+    return resolved !== undefined ? resolved : term
+  }
+  if (isLiteral(term)) {
+    return term.value
+  }
+  if (isCall(term)) {
+    return {
+      ...term,
+      args: term.args.map(a => resolveTerm(a, subst, depth + 1))
+    }
+  }
+  if (isFunctor(term)) {
+    return {
+      ...term,
+      args: term.args.map(a => resolveTerm(a, subst, depth + 1))
+    }
+  }
+  if (isArray(term)) {
+    return term.elements.map(e => resolveTerm(e, subst, depth + 1))
+  }
+  if (Array.isArray(term)) {
+    return term.map(e => resolveTerm(e, subst, depth + 1))
+  }
+  return term
 }
 
 /**

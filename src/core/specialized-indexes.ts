@@ -23,7 +23,8 @@ import type { ConstraintRecord } from './constraint.js'
  */
 export class EqualityIndex {
   private readonly index = new Map<string, Map<unknown, Set<number>>>()
-  // Structure: functor -> (value -> constraint IDs)
+  private readonly byArgIndex = new Map<string, Map<number, Map<unknown, Set<number>>>>()
+  // Structure: functor -> (value -> constraint IDs), plus functor -> (argIndex -> (value -> constraint IDs))
 
   /**
    * Add a constraint to the equality index.
@@ -34,8 +35,12 @@ export class EqualityIndex {
     if (!this.index.has(functor)) {
       this.index.set(functor, new Map())
     }
+    if (!this.byArgIndex.has(functor)) {
+      this.byArgIndex.set(functor, new Map())
+    }
     
     const functorIndex = this.index.get(functor)!
+    const functorArgIndex = this.byArgIndex.get(functor)!
     
     for (let i = 0; i < constraint.args.length; i++) {
       const value = constraint.args[i]
@@ -43,6 +48,15 @@ export class EqualityIndex {
         functorIndex.set(value, new Set())
       }
       functorIndex.get(value)!.add(constraint.id)
+
+      if (!functorArgIndex.has(i)) {
+        functorArgIndex.set(i, new Map())
+      }
+      const argMap = functorArgIndex.get(i)!
+      if (!argMap.has(value)) {
+        argMap.set(value, new Set())
+      }
+      argMap.get(value)!.add(constraint.id)
     }
   }
 
@@ -52,6 +66,7 @@ export class EqualityIndex {
   remove (constraint: ConstraintRecord): void {
     const functor = `${constraint.name}/${constraint.arity}`
     const functorIndex = this.index.get(functor)
+    const functorArgIndex = this.byArgIndex.get(functor)
     
     if (!functorIndex) return
     
@@ -64,25 +79,38 @@ export class EqualityIndex {
           functorIndex.delete(value)
         }
       }
+      const argMap = functorArgIndex?.get(i)
+      const argValueIndex = argMap?.get(value)
+      if (argMap && argValueIndex) {
+        argValueIndex.delete(constraint.id)
+        if (argValueIndex.size === 0) {
+          argMap.delete(value)
+        }
+        if (argMap.size === 0) {
+          functorArgIndex?.delete(i)
+        }
+      }
     }
     
     if (functorIndex.size === 0) {
       this.index.delete(functor)
+    }
+    if (functorArgIndex && functorArgIndex.size === 0) {
+      this.byArgIndex.delete(functor)
     }
   }
 
   /**
    * Lookup constraints by exact argument value.
    */
-  lookup (name: string, arity: number, _argIndex: number, value: unknown): number[] {
+  lookup (name: string, arity: number, argIndex: number, value: unknown): number[] {
     const functor = `${name}/${arity}`
-    const functorIndex = this.index.get(functor)
-    
-    if (!functorIndex) return []
-    
-    const valueIndex = functorIndex.get(value)
+    const functorArgIndex = this.byArgIndex.get(functor)
+    if (!functorArgIndex) return []
+    const argMap = functorArgIndex.get(argIndex)
+    if (!argMap) return []
+    const valueIndex = argMap.get(value)
     if (!valueIndex) return []
-    
     return [...valueIndex]
   }
 
@@ -109,6 +137,7 @@ export class EqualityIndex {
    */
   clear (): void {
     this.index.clear()
+    this.byArgIndex.clear()
   }
 
   /**

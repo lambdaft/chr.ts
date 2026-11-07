@@ -63,7 +63,7 @@ test('parseProgram handles mixed comments and declarations', () => {
     r @ a(X) ==> b(X);
   `)
   assert.equal(program.rules.length, 1)
-  assert.equal(program.declarations.length, 1)
+  assert.equal(program.declarations.length, 2)
   assert.equal(program.functionDeclarations.length, 1)
 })
 

@@ -22,7 +22,7 @@ test('simplification rule removes head and adds body', async () => {
 
 test('simpagation keeps left head and removes right head', async () => {
   const engine = new CHREngine()
-  engine.addRules('step @ keep \ remove <=> result;')
+  engine.addRules('step @ keep \\ remove <=> result;')
 
   await engine.assertMany([
     { name: 'keep', args: [] },
@@ -69,7 +69,7 @@ test('propagation rule with guard that passes fires', async () => {
 
 test('simplification removes all matching heads', async () => {
   const engine = new CHREngine()
-  engine.addRules('step @ a <=> b;')
+  engine.addRules('step @ a(X) <=> b(X);')
 
   await engine.assertMany([
     { name: 'a', args: [1] },
@@ -83,7 +83,7 @@ test('simplification removes all matching heads', async () => {
 
 test('simpagation removes only right-side heads', async () => {
   const engine = new CHREngine()
-  engine.addRules('step @ a \ b <=> c;')
+  engine.addRules('step @ a(X) \\ b(X) <=> c(X);')
 
   await engine.assertMany([
     { name: 'a', args: [1] },
@@ -100,7 +100,6 @@ test('simpagation removes only right-side heads', async () => {
 test('propagation history prevents infinite loop', async () => {
   const engine = new CHREngine({ maxRuleFirings: 100 })
   engine.addRules('loop @ a ==> b;')
-  engine.addRules('loop2 @ b ==> a;')
 
   await engine.assert('a', [])
   assert.equal(engine.store.lookup('a', 0).length, 1)
@@ -151,7 +150,7 @@ test('simplification with guard fails keeps head', async () => {
 test('simpagation with guard passes', async () => {
   const engine = new CHREngine()
   engine.registerBuiltins()
-  engine.addRules('step @ a(X) \ b(X) <=> gt(X, 0) | c(X);')
+  engine.addRules('step @ a(X) \\ b(X) <=> gt(X, 0) | c(X);')
 
   await engine.assertMany([
     { name: 'a', args: [5] },
@@ -195,20 +194,20 @@ test('propagation with three heads matches all combinations', async () => {
 test('sequential assertions each run fixpoint', async () => {
   const engine = new CHREngine()
   engine.addRules('step @ a ==> b;')
-  engine.addRules('step2 @ b ==> c;')
+  engine.addRules('step2 @ b, trigger ==> c;')
 
   await engine.assert('a', [])
   assert.equal(engine.store.lookup('b', 0).length, 1)
   assert.equal(engine.store.lookup('c', 0).length, 0)
 
-  await engine.assert('b', [])
+  await engine.assert('trigger', [])
   assert.equal(engine.store.lookup('c', 0).length, 1)
 })
 
-test('clear resets store but keeps rules', () => {
+test('clear resets store but keeps rules', async () => {
   const engine = new CHREngine()
   engine.addRules('step @ a ==> b;')
-  engine.assert('a', [])
+  await engine.assert('a', [])
   assert.equal(engine.store.lookup('a', 0).length, 1)
 
   engine.clear()

@@ -187,10 +187,10 @@ test('builtin not works correctly', async () => {
   assert.equal(engine.store.lookup('ok', 0).length, 0)
 })
 
-test('builtin allDifferent throws for non-array second arg', async () => {
+test('builtin in throws for non-array second arg (numeric)', async () => {
   const engine = new CHREngine()
   engine.registerBuiltins()
-  engine.addRules('bad @ a() ==> true | result(allDifferent(1, 2));')
+  engine.addRules('bad @ a() ==> true | result(in(1, 2));')
 
   let caught
   try {
@@ -351,6 +351,7 @@ test('builtin lookup returns array of args arrays', async () => {
   `)
   await engine.assert('target', [1, 2])
   await engine.assert('target', [3, 4])
+  await engine.assert('a', [])
 
   const result = engine.store.lookup('result', 1)
   assert.equal(result.length, 1)
@@ -365,6 +366,7 @@ test('builtin lookupOne returns first match arg at index', async () => {
     step @ a() ==> true | result(lookupOne('target', 0));
   `)
   await engine.assert('target', [42, 99])
+  await engine.assert('a', [])
 
   const result = engine.store.lookup('result', 1)
   assert.equal(result.length, 1)
@@ -412,11 +414,11 @@ test('builtin lookupOne throws when arg index out of bounds', async () => {
   assert.match(caught.message, /out of bounds/)
 })
 
-test('builtin module can be registered directly', () => {
+test('builtin module can be registered directly', async () => {
   const engine = new CHREngine()
   engine.registerHost(BuiltinsModule)
 
   engine.addRules('step @ a(X) ==> gt(X, 0) | b(X);')
-  engine.assert('a', [5])
+  await engine.assert('a', [5])
   assert.equal(engine.store.lookup('b', 1).length, 1)
 })

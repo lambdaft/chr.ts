@@ -23,9 +23,27 @@
  * number of constraints in the store.
  */
 
+export interface PropagationHistoryOptions {
+  preserveOrder?: boolean
+}
+
 export class PropagationHistory {
-  /** Map from rule name to a set of sorted-ID hashes. */
+  /** Map from rule name to a set of sorted-ID or ordered-ID hashes. */
   private readonly entries = new Map<string, Set<string>>()
+
+  /** Whether to preserve exact head tuple ordering (default: false for standalone history, true in CHREngine). */
+  private readonly preserveOrder: boolean
+
+  constructor (options: PropagationHistoryOptions = {}) {
+    this.preserveOrder = options.preserveOrder ?? false
+  }
+
+  private formatIds (ids: number[]): string {
+    if (this.preserveOrder) {
+      return ids.join(':')
+    }
+    return hashIds(ids)
+  }
 
   /**
    * Record that a rule has fired on a given set of constraint IDs.
@@ -35,7 +53,7 @@ export class PropagationHistory {
    */
   add (ruleName: string, ids: number[]): void {
     const ruleEntries = this.entries.get(ruleName) ?? new Set<string>()
-    ruleEntries.add(hashIds(ids))
+    ruleEntries.add(this.formatIds(ids))
     this.entries.set(ruleName, ruleEntries)
   }
 
@@ -47,7 +65,7 @@ export class PropagationHistory {
    * @returns `true` if this combination has been seen before.
    */
   has (ruleName: string, ids: number[]): boolean {
-    return this.entries.get(ruleName)?.has(hashIds(ids)) ?? false
+    return this.entries.get(ruleName)?.has(this.formatIds(ids)) ?? false
   }
 
   /**

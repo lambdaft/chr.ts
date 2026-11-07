@@ -41,7 +41,7 @@ import type {
   RuleFireTrace,
   RuleNode
 } from './ast.js'
-import { BuiltinsModule } from './builtins.js'
+import { BuiltinFunctions, BuiltinsModule } from './builtins.js'
 import type { ConstraintRecord } from './constraint.js'
 import { CHRExecutionError, CHRParseError, CHRGuardError } from './errors.js'
 import { PropagationHistory } from './history.js'
@@ -51,7 +51,7 @@ import { Substitution } from './substitution.js'
 import { materializeSubstitution, unifyTerm } from './unification.js'
 import { readFileSync } from 'node:fs'
 import { evaluateExpression as evalExpression } from './engine/eval.js'
-import { JoinOptimizer, type JoinPlan } from './join-optimizer.js'
+import { JoinOptimizer, type JoinPlan, type JoinStep } from './join-optimizer.js'
 import { RecursionUnfolder, type UnfolderOptions } from './recursion-unfolder.js'
 import { UnfoldInterpreter } from './unfold-interpreter.js'
 import { RelationalEngine, type RelationalQueryOptions } from './relational-engine.js'
@@ -160,8 +160,12 @@ export interface CHREngineOptions {
   argumentIndexOptions?: import('./argument-index.js').ArgumentIndexOptions
   /** Enable runtime recursion unfolding for linear recursive rules. Default: false. */
   enableRecursionUnfolding?: boolean
+  /** Maximum recursion unfolding depth (shortcut for unfolderOptions.maxUnfoldings). */
+  maxUnfoldings?: number
   /** Options for the recursion unfolder. */
   unfolderOptions?: UnfolderOptions
+  /** Preserve head constraint order in propagation history instead of sorting IDs. Default: false. */
+  preserveHistoryOrder?: boolean
 }
 
 /**
@@ -231,7 +235,7 @@ export class CHREngine {
   // -------------------------------------------------------------------------
 
   /** The propagation history: tracks which rule/constraint-ID combinations have already fired. */
-  readonly history = new PropagationHistory()
+  readonly history: PropagationHistory
 
   // -------------------------------------------------------------------------
   // Private internal state
@@ -325,6 +329,7 @@ export class CHREngine {
     this.hostFunctionTimeout = options.hostFunctionTimeout
     this.enableIndexedCHR = options.enableIndexedCHR ?? false
     this.enableRecursionUnfolding = options.enableRecursionUnfolding ?? false
+    this.history = new PropagationHistory({ preserveOrder: options.preserveHistoryOrder ?? false })
     
     // Initialize constraint store with argument indexing options
     const storeOptions: { argumentIndex?: import('./argument-index.js').ArgumentIndexOptions } = {}
@@ -337,7 +342,13 @@ export class CHREngine {
     this.joinOptimizer = this.enableIndexedCHR ? new JoinOptimizer(this.store.argumentIndex, this.store) : null
     
     // Initialize recursion unfolder if enabled
-    this.unfolder = this.enableRecursionUnfolding ? new RecursionUnfolder(options.unfolderOptions) : null
+    this.unfolder = this.enableRecursionUnfolding
+      ? new RecursionUnfolder({
+          enabled: true,
+          ...(options.maxUnfoldings !== undefined ? { maxUnfoldings: options.maxUnfoldings } : {}),
+          ...options.unfolderOptions
+        })
+      : null
   }
 
   // -------------------------------------------------------------------------
@@ -361,7 +372,7 @@ export class CHREngine {
    * but may indicate bugs in the rule source.
    */
   getWarnings (): readonly string[] {
-    return this.warnings
+    return [...this.warnings]
   }
 
   // -------------------------------------------------------------------------
@@ -455,54 +466,98 @@ export class CHREngine {
       }
     }
 
-    // Validate guards only reference pattern-bound variables.
-    for (const guard of rule.guard) {
-      const guardVars = new Set<string>()
-      this.collectVariablesInExpression(guard, guardVars)
+    const currentScopeVars = new Set(patternVars)
 
-      for (const varName of guardVars) {
-        if (varName !== '_' && !patternVars.has(varName)) {
-          throw new CHRExecutionError(
-            `Guard references unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'. Only variables bound in head constraints can appear in guards.`,
+    // Process let bindings first (and validate no shadowing or unbound variables in let exprs).
+    for (const item of rule.body) {
+      if (item.type === 'let') {
+        if (currentScopeVars.has(item.name)) {
+          throw new CHRParseError(
+            `Variable '${item.name}' in let binding shadows an already bound variable in rule '${rule.name ?? 'anonymous'}'.`,
             rule.span
           )
         }
+        const letVars = new Set<string>()
+        this.collectVariablesInExpression(item.expr, letVars)
+        for (const varName of letVars) {
+          if (varName !== '_' && !currentScopeVars.has(varName)) {
+            throw new CHRExecutionError(
+              `Let binding uses unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'.`,
+              rule.span
+            )
+          }
+        }
+        currentScopeVars.add(item.name)
       }
     }
 
-    // Validate body doesn't use undeclared variables.
-    const currentScopeVars = new Set(patternVars)
-    for (const item of rule.body) {
-      if (item.type === 'let') {
-        currentScopeVars.add(item.name)
-      } else if (item.type === 'constraint') {
-        for (const arg of item.constraint.args) {
-          const bodyVars = new Set<string>()
-          this.collectVariablesInExpression(arg, bodyVars)
-          for (const varName of bodyVars) {
-            if (varName !== '_' && !currentScopeVars.has(varName)) {
-              throw new CHRExecutionError(
-                `Body constraint uses unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'..`,
-                rule.span
-              )
-            }
-          }
-        }
-      } else if (item.type === 'update') {
-        for (const arg of [...item.old.args, ...item.constraint.args]) {
-          const bodyVars = new Set<string>()
-          this.collectVariablesInExpression(arg, bodyVars)
-          for (const varName of bodyVars) {
-            if (varName !== '_' && !currentScopeVars.has(varName)) {
-              throw new CHRExecutionError(
-                `Body update uses unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'..`,
-                rule.span
-              )
-            }
+    // Validate guards only reference pattern-bound or let-bound variables.
+    if (currentScopeVars.size > 0) {
+      for (const guard of rule.guard) {
+        const guardVars = new Set<string>()
+        this.collectVariablesInExpression(guard, guardVars)
+
+        for (const varName of guardVars) {
+          if (varName !== '_' && !currentScopeVars.has(varName)) {
+            throw new CHRExecutionError(
+              `Guard references unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'. Only variables bound in head constraints can appear in guards.`,
+              rule.span
+            )
           }
         }
       }
     }
+
+    // Validate body items don't use undeclared variables.
+    const checkBodyItems = (items: RuleNode['body']) => {
+      for (const item of items) {
+        if (item.type === 'constraint') {
+          for (const arg of item.constraint.args) {
+            const bodyVars = new Set<string>()
+            this.collectVariablesInExpression(arg, bodyVars)
+            for (const varName of bodyVars) {
+              if (varName !== '_' && !currentScopeVars.has(varName)) {
+                throw new CHRExecutionError(
+                  `Body constraint uses unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'..`,
+                  rule.span
+                )
+              }
+            }
+          }
+        } else if (item.type === 'action' && currentScopeVars.size > 0) {
+          for (const arg of item.args) {
+            const actionVars = new Set<string>()
+            this.collectVariablesInExpression(arg, actionVars)
+            for (const varName of actionVars) {
+              if (varName !== '_' && !currentScopeVars.has(varName)) {
+                throw new CHRExecutionError(
+                  `Body action uses unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'.`,
+                  rule.span
+                )
+              }
+            }
+          }
+        } else if (item.type === 'update') {
+          for (const arg of [...item.old.args, ...item.constraint.args]) {
+            const bodyVars = new Set<string>()
+            this.collectVariablesInExpression(arg, bodyVars)
+            for (const varName of bodyVars) {
+              if (varName !== '_' && !currentScopeVars.has(varName)) {
+                throw new CHRExecutionError(
+                  `Body update uses unbound variable '${varName}' in rule '${rule.name ?? 'anonymous'}'..`,
+                  rule.span
+                )
+              }
+            }
+          }
+        } else if (item.type === 'disjunction') {
+          for (const branch of item.branches) {
+            checkBodyItems(branch)
+          }
+        }
+      }
+    }
+    checkBodyItems(rule.body)
   }
 
   /**
@@ -679,7 +734,7 @@ export class CHREngine {
     }
 
     // Add unfold-interpreter meta-rules (unf/3 and mip/2) once
-    const interpreter = new UnfoldInterpreter()
+    const interpreter = new UnfoldInterpreter({ maxUnfoldings: this.unfolder.maxUnfoldings })
     const metaRules = interpreter.getUnfoldRules('', 0)
     for (const rule of metaRules) {
       this.addRule(rule)
@@ -729,20 +784,47 @@ export class CHREngine {
    */
   validate (source: string): { ok: boolean, parseError?: CHRParseError, executionErrors: CHRExecutionError[] } {
     const executionErrors: CHRExecutionError[] = []
+    const savedDeclarations = new Map(this.declarations)
+    const savedFunctionDeclarations = new Map(this.functionDeclarations)
+    const savedActionDeclarations = new Map(this.actionDeclarations)
+    const savedFunctions = new Map(this.functions)
+    const savedActions = new Map(this.actions)
+    const savedWarnings = [...this.warnings]
+
     try {
       const program = parseProgram(source)
 
       for (const declaration of program.declarations) {
-        this.applyDeclaration(declaration)
+        try {
+          this.applyDeclaration(declaration)
+        } catch (error) {
+          if (error instanceof CHRExecutionError) executionErrors.push(error)
+          else throw error
+        }
       }
       for (const declaration of program.functionDeclarations) {
-        this.applyFunctionDeclaration(declaration)
+        try {
+          this.applyFunctionDeclaration(declaration)
+        } catch (error) {
+          if (error instanceof CHRExecutionError) executionErrors.push(error)
+          else throw error
+        }
       }
       for (const declaration of program.actionDeclarations) {
-        this.applyActionDeclaration(declaration)
+        try {
+          this.applyActionDeclaration(declaration)
+        } catch (error) {
+          if (error instanceof CHRExecutionError) executionErrors.push(error)
+          else throw error
+        }
       }
       for (const imprt of program.hostImports) {
-        this.applyHostImport(imprt)
+        try {
+          this.applyHostImport(imprt)
+        } catch (error) {
+          if (error instanceof CHRExecutionError) executionErrors.push(error)
+          else throw error
+        }
       }
 
       for (const rule of program.rules) {
@@ -764,6 +846,19 @@ export class CHREngine {
         return { ok: false, parseError: error, executionErrors }
       }
       throw error
+    } finally {
+      this.declarations.clear()
+      for (const [k, v] of savedDeclarations) this.declarations.set(k, v)
+      this.functionDeclarations.clear()
+      for (const [k, v] of savedFunctionDeclarations) this.functionDeclarations.set(k, v)
+      this.actionDeclarations.clear()
+      for (const [k, v] of savedActionDeclarations) this.actionDeclarations.set(k, v)
+      this.functions.clear()
+      for (const [k, v] of savedFunctions) this.functions.set(k, v)
+      this.actions.clear()
+      for (const [k, v] of savedActions) this.actions.set(k, v)
+      this.warnings.length = 0
+      this.warnings.push(...savedWarnings)
     }
   }
 
@@ -831,6 +926,9 @@ export class CHREngine {
     }
     if (module.actions) {
       this.registerActions(module.actions)
+    }
+    if (![...this.hostModules.values()].includes(module)) {
+      this.hostModules.set(module === BuiltinsModule ? 'builtins' : `host_${this.hostModules.size}`, module)
     }
   }
 
@@ -920,11 +1018,32 @@ export class CHREngine {
    * @returns The `ConstraintRecord` that was added to the store.
    * @throws {CHRExecutionError} If no rules are loaded, arity is wrong, or max firings exceeded.
    */
-  async assert (name: string, args: unknown[] = [], options?: AssertOptions): Promise<ConstraintRecord> {
+  async assert (name: string, args?: unknown[], options?: AssertOptions): Promise<ConstraintRecord> {
+    let resolvedName = name
+    let resolvedArgs: unknown[] = args ?? []
+    if (args === undefined && name.includes('(') && name.trim().endsWith(')')) {
+      try {
+        const parsed = parseProgram(`${name.trim()} <=> true;`)
+        const pattern = parsed.rules[0]?.removed[0]
+        if (pattern) {
+          resolvedName = pattern.name
+          resolvedArgs = []
+          for (const expr of pattern.args) {
+            if (expr.type === 'literal') {
+              resolvedArgs.push(expr.value)
+            } else {
+              resolvedArgs.push(await this.evaluateExpression(expr, parsed.rules[0]!, [], {}, false))
+            }
+          }
+        }
+      } catch {
+        // Fallback to raw name if not a valid constraint expression
+      }
+    }
+    this.validateConstraintArity(resolvedName, resolvedArgs.length)
     this.ensureReady()
-    this.validateConstraintArity(name, args.length)
     this.validateHostDeclarationsOnce()
-    const record = this.store.add(name, args)
+    const record = this.store.add(resolvedName, resolvedArgs)
     await this.runToFixpointSafe(options)
     return record
   }
@@ -954,13 +1073,18 @@ export class CHREngine {
    * Clear the constraint store, history, and warnings.
    *
    * Does NOT remove rules or host modules. The engine returns to `ready`
-   * state and can accept new assertions.
+   * state and can accept new assertions (unless in `error` or `empty` state).
    */
   clear (): void {
+    if (this._state === 'error') {
+      return
+    }
     this.store.clear()
     this.history.clear()
     this.warnings.length = 0
-    this._state = 'ready'
+    if (this._state !== 'empty') {
+      this._state = 'ready'
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -1108,10 +1232,13 @@ export class CHREngine {
   // Private state guards
   // -------------------------------------------------------------------------
 
-  /** Throw if the engine is currently running (mutations not allowed during fixpoint). */
+  /** Throw if the engine is currently running or in error state (mutations not allowed). */
   private ensureEmpty (): void {
     if (this._state === 'running') {
       throw new CHRExecutionError('Engine is currently running. Wait for the current assertion to complete before modifying rules.')
+    }
+    if (this._state === 'error') {
+      throw new CHRExecutionError('Engine is in an error state. Create a new engine instance to continue.')
     }
   }
 
@@ -1171,11 +1298,14 @@ export class CHREngine {
     const scanExpression = (expr: Expression) => {
       if (expr.type === 'call') {
         usedFunctions.add(expr.callee)
+        for (const arg of expr.args) scanExpression(arg)
       } else if (expr.type === 'binary') {
         scanExpression(expr.left)
         scanExpression(expr.right)
       } else if (expr.type === 'unary') {
         scanExpression(expr.operand)
+      } else if (expr.type === 'array') {
+        for (const elem of expr.elements) scanExpression(elem)
       }
     }
 
@@ -1193,6 +1323,8 @@ export class CHREngine {
           }
         } else if (item.type === 'let') {
           scanExpression(item.expr)
+        } else if (item.type === 'disjunction') {
+          for (const branch of item.branches) scanBody(branch)
         }
       }
     }
@@ -1268,20 +1400,25 @@ export class CHREngine {
     }
     bodyVars.clear()
 
-    for (const item of rule.body) {
-      if (item.type === 'constraint') {
-        for (const arg of item.constraint.args) {
-          collectVars(arg)
+    const collectBodyVars = (items: RuleNode['body']) => {
+      for (const item of items) {
+        if (item.type === 'constraint') {
+          for (const arg of item.constraint.args) {
+            collectVars(arg)
+          }
+        } else if (item.type === 'action') {
+          for (const arg of item.args) collectVars(arg)
+        } else if (item.type === 'update') {
+          for (const arg of item.old.args) collectVars(arg)
+          for (const arg of item.constraint.args) collectVars(arg)
+        } else if (item.type === 'let') {
+          collectVars(item.expr)
+        } else if (item.type === 'disjunction') {
+          for (const branch of item.branches) collectBodyVars(branch)
         }
-      } else if (item.type === 'action') {
-        for (const arg of item.args) collectVars(arg)
-      } else if (item.type === 'update') {
-        for (const arg of item.old.args) collectVars(arg)
-        for (const arg of item.constraint.args) collectVars(arg)
-      } else if (item.type === 'let') {
-        collectVars(item.expr)
       }
     }
+    collectBodyVars(rule.body)
 
     for (const [varName, occurrences] of allHeadVars) {
       if (occurrences.length > 1) {
@@ -1392,79 +1529,120 @@ export class CHREngine {
   }
 
   /**
-   * Find match using optimized join plan.
+   * Find match using optimized join plan with full backtracking.
    * 
    * This method uses the pre-computed join plan to guide the search order
-   * and leverage argument-based indexes for efficient constraint matching.
+   * and leverage argument-based indexes for efficient constraint matching,
+   * while preserving head order in the returned `constraints` array and
+   * backtracking when guards or propagation history reject a candidate tuple.
    */
   private async findMatchWithJoinPlan (
     rule: RuleNode,
     heads: ConstraintPattern[],
-    joinPlan: import('./join-optimizer.js').JoinPlan
+    joinPlan: JoinPlan
   ): Promise<MatchResult | null> {
-    const matched: ConstraintRecord[] = []
-    const bindings: Record<string, unknown> = {}
-    const usedIds = new Set<number>()
-    
-    // Process each step in the join plan
-    for (const step of joinPlan.steps) {
-      const pattern = heads[step.constraintIndex]
-      if (!pattern) {
+    const matchedByHead: Array<ConstraintRecord | undefined> = new Array(heads.length)
+    return this.findMatchJoinStep(rule, heads, joinPlan, 0, matchedByHead, {}, new Set<number>())
+  }
+
+  private async findMatchJoinStep (
+    rule: RuleNode,
+    heads: ConstraintPattern[],
+    joinPlan: JoinPlan,
+    stepIndex: number,
+    matchedByHead: Array<ConstraintRecord | undefined>,
+    bindings: Record<string, unknown>,
+    usedIds: Set<number>
+  ): Promise<MatchResult | null> {
+    if (stepIndex >= joinPlan.steps.length) {
+      const matched: ConstraintRecord[] = []
+      for (let i = 0; i < heads.length; i++) {
+        const entry = matchedByHead[i]
+        if (!entry) return null
+        matched.push(entry)
+      }
+
+      const ids = matched.map((entry) => entry.id)
+      const hasUpdate = rule.body.some((item) => item.type === 'update')
+      if ((rule.kind === 'propagation' || hasUpdate) && this.history.has(rule.name ?? 'anonymous', ids)) {
         return null
       }
-      
-      const candidates = this.getCandidatesForStep(pattern, step, bindings)
-      
-      let foundMatch = false
-      for (const candidate of candidates) {
-        if (usedIds.has(candidate.id)) {
-          continue
-        }
-        
-        const newBindings = this.matchPattern(rule, pattern, candidate, bindings)
-        if (!newBindings) {
-          continue
-        }
-        
-        // Update bindings with the new variable assignments
-        Object.assign(bindings, newBindings)
-        matched.push(candidate)
-        usedIds.add(candidate.id)
-        foundMatch = true
-        break
-      }
-      
-      if (!foundMatch) {
-        return null // No candidate found for this step
-      }
-    }
-    
-    // All constraints matched, check guards
-    const ids = matched.map((entry) => entry.id)
-    const guardsOk = await this.evaluateGuards(rule, matched, bindings)
-    if (!guardsOk) {
-      return null
-    }
-    
-    // Propagation rules use history to prevent infinite loops
-    if (rule.kind === 'propagation') {
-      if (this.history.has(rule.name ?? 'anonymous', ids)) {
+
+      const evalBindings = { ...bindings }
+      const guardsOk = await this.evaluateGuards(rule, matched, evalBindings)
+      if (!guardsOk) {
         return null
       }
-      this.history.add(rule.name ?? 'anonymous', ids)
+
+      if (rule.kind === 'propagation' || hasUpdate) {
+        this.history.add(rule.name ?? 'anonymous', ids)
+      }
+
+      return { constraints: matched, bindings: evalBindings }
     }
-    
-    return { constraints: matched, bindings }
+
+    const step = joinPlan.steps[stepIndex]
+    if (!step) return null
+    const pattern = heads[step.constraintIndex]
+    if (!pattern) return null
+
+    const candidates = this.getCandidatesForStep(rule, pattern, step, bindings)
+    for (const candidate of candidates) {
+      if (usedIds.has(candidate.id)) {
+        continue
+      }
+
+      const newBindings = this.matchPattern(rule, pattern, candidate, bindings)
+      if (!newBindings) {
+        continue
+      }
+
+      const nextMatched = [...matchedByHead]
+      nextMatched[step.constraintIndex] = candidate
+      const nextUsedIds = new Set(usedIds)
+      nextUsedIds.add(candidate.id)
+
+      const result = await this.findMatchJoinStep(
+        rule,
+        heads,
+        joinPlan,
+        stepIndex + 1,
+        nextMatched,
+        newBindings,
+        nextUsedIds
+      )
+      if (result) {
+        return result
+      }
+    }
+
+    return null
   }
 
   /**
-   * Get candidate constraints for a join step based on the lookup method.
+   * Get candidate constraints for a join step based on the lookup method and current bindings.
    */
   private getCandidatesForStep (
+    rule: RuleNode,
     pattern: ConstraintPattern,
-    step: import('./join-optimizer.js').JoinStep,
-    _bindings: Record<string, unknown>
+    step: JoinStep,
+    bindings: Record<string, unknown>
   ): ConstraintRecord[] {
+    if (!rule.unify) {
+      for (let i = 0; i < pattern.args.length; i++) {
+        const arg = pattern.args[i]
+        if (!arg) continue
+        if (this.store.argumentIndex.hasSingleIndex(pattern.name, pattern.args.length, i)) {
+          if (arg.type === 'literal') {
+            return this.store.lookupByArg(pattern.name, pattern.args.length, i, arg.value)
+          }
+          if (arg.type === 'variable' && arg.name !== '_' && Object.hasOwn(bindings, arg.name)) {
+            return this.store.lookupByArg(pattern.name, pattern.args.length, i, bindings[arg.name])
+          }
+        }
+      }
+    }
+
     switch (step.lookupMethod) {
       case 'functor':
         return this.store.lookup(pattern.name, pattern.args.length)
@@ -1473,7 +1651,6 @@ export class CHREngine {
         if (step.argIndex !== undefined && step.argValue !== undefined) {
           return this.store.lookupByArg(pattern.name, pattern.args.length, step.argIndex, step.argValue)
         }
-        // Fall back to functor lookup if value not known
         return this.store.lookup(pattern.name, pattern.args.length)
       
       case 'composite':
@@ -1489,12 +1666,9 @@ export class CHREngine {
             .filter((r): r is ConstraintRecord => r !== undefined)
             .sort((a, b) => a.id - b.id)
         }
-        // Fall back to functor lookup if composite lookup not possible
         return this.store.lookup(pattern.name, pattern.args.length)
       
       case 'scan':
-        return this.store.lookup(pattern.name, pattern.args.length)
-      
       default:
         return this.store.lookup(pattern.name, pattern.args.length)
     }
@@ -1521,21 +1695,23 @@ export class CHREngine {
   ): Promise<MatchResult | null> {
     if (index >= heads.length) {
       const ids = matched.map((entry) => entry.id)
+      const hasUpdate = rule.body.some((item) => item.type === 'update')
+      if ((rule.kind === 'propagation' || hasUpdate) && this.history.has(rule.name ?? 'anonymous', ids)) {
+        return null
+      }
 
-      const guardsOk = await this.evaluateGuards(rule, matched, bindings)
+      const evalBindings = { ...bindings }
+      const guardsOk = await this.evaluateGuards(rule, matched, evalBindings)
       if (!guardsOk) {
         return null
       }
 
-      // Propagation rules use history to prevent infinite loops.
-      if (rule.kind === 'propagation') {
-        if (this.history.has(rule.name ?? 'anonymous', ids)) {
-          return null
-        }
+      // Propagation rules and in-place update rules use history to prevent infinite loops.
+      if (rule.kind === 'propagation' || hasUpdate) {
         this.history.add(rule.name ?? 'anonymous', ids)
       }
 
-      return { constraints: matched, bindings }
+      return { constraints: matched, bindings: evalBindings }
     }
 
     const pattern = heads[index]
@@ -1630,6 +1806,16 @@ export class CHREngine {
         continue
       }
 
+      if (useUnification && (term.type === 'call' || term.type === 'array')) {
+        const unified = unifyTerm(term, value, subst!)
+        if (!unified) {
+          return null
+        }
+        subst = unified
+        nextBindings = materializeSubstitution(unified, nextBindings)
+        continue
+      }
+
       throw new CHRExecutionError(`Head expressions must be variables or literals. Unsupported term in ${pattern.name}/${pattern.args.length}.`, rule.span)
     }
 
@@ -1667,6 +1853,22 @@ export class CHREngine {
    * @returns `true` if all guards pass, `false` if any guard fails.
    */
   private async evaluateGuards (rule: RuleNode, matched: ConstraintRecord[], bindings: Record<string, unknown>): Promise<boolean> {
+    // Evaluate prefix let-bindings so let-bound variables are available in guards
+    for (const item of rule.body) {
+      if (item.type === 'let') {
+        try {
+          bindings[item.name] = await this.evaluateExpression(item.expr, rule, matched, bindings, false)
+        } catch (error) {
+          if (error instanceof CHRGuardError) {
+            return false
+          }
+          throw error
+        }
+      } else {
+        break
+      }
+    }
+
     for (const guard of rule.guard) {
       try {
         const value = await this.evaluateExpression(guard, rule, matched, bindings, true)
@@ -1716,7 +1918,11 @@ export class CHREngine {
     }
 
     // FIXED: Execute body with modified store
-    for (const item of rule.body) {
+    await this.executeBodyItems(rule, match, rule.body)
+  }
+
+  private async executeBodyItems (rule: RuleNode, match: MatchResult, items: RuleNode['body']): Promise<void> {
+    for (const item of items) {
       if (item.type === 'constraint') {
         await this.emitConstraint(rule, match, item)
       } else if (item.type === 'action') {
@@ -1724,8 +1930,15 @@ export class CHREngine {
       } else if (item.type === 'update') {
         await this.applyConstraintUpdate(rule, match, item)
       } else if (item.type === 'let') {
-        const val = await this.evaluateExpression(item.expr, rule, match.constraints, match.bindings, false)
-        match.bindings[item.name] = val
+        if (!Object.hasOwn(match.bindings, item.name)) {
+          const val = await this.evaluateExpression(item.expr, rule, match.constraints, match.bindings, false)
+          match.bindings[item.name] = val
+        }
+      } else if (item.type === 'disjunction') {
+        const firstBranch = item.branches[0]
+        if (firstBranch) {
+          await this.executeBodyItems(rule, match, firstBranch)
+        }
       }
     }
   }
@@ -1734,21 +1947,26 @@ export class CHREngine {
    * Determine which matched constraints should be removed based on rule kind.
    *
    * - `propagation`: no constraints are removed (kept = all).
-   * - `simplification`: all matched constraints are removed.
+   * - `simplification`: all matched constraints are removed (except those updated in-place).
    * - `simpagation`: only the removed head constraints are removed (those
-   *   after the `\` separator).
+   *   after the `\` separator, except those updated in-place).
    */
   private determineConstraintsToRemove (rule: RuleNode, matched: ConstraintRecord[]): ConstraintRecord[] {
     if (rule.kind === 'propagation') {
       return []
     }
 
-    if (rule.kind === 'simplification') {
-      return matched
+    const candidates = rule.kind === 'simplification'
+      ? matched
+      : matched.slice(rule.kept.length)
+
+    const updates = rule.body.filter((item): item is BodyConstraintUpdate => item.type === 'update')
+    if (updates.length === 0) {
+      return candidates
     }
 
-    // Simpagation: remove all but the kept ones
-    return matched.slice(rule.kept.length)
+    // Keep constraints that will be updated in-place by applyConstraintUpdate
+    return candidates.filter((c) => !updates.some((u) => u.old.name === c.name && u.old.args.length === c.arity))
   }
 
   /**
@@ -1759,6 +1977,10 @@ export class CHREngine {
    */
   private async emitConstraint (rule: RuleNode, match: MatchResult, item: BodyConstraint): Promise<void> {
     if (item.constraint.name === 'true' && item.constraint.args.length === 0) {
+      return
+    }
+    if (item.constraint.name === 'false' && item.constraint.args.length === 0) {
+      this.store.invalidate()
       return
     }
 
@@ -1772,25 +1994,22 @@ export class CHREngine {
   }
 
   /**
-   * Perform an in-place constraint update: remove `old` and add `constraint`.
-   *
-   * The engine locates all store entries matching `old` by comparing names,
-   * arities, and every argument value. Matching entries are removed before
-   * the new constraint is added.
+   * Perform an in-place constraint update: update `old` to `constraint` preserving ID.
    */
   private async applyConstraintUpdate (rule: RuleNode, match: MatchResult, item: BodyConstraintUpdate): Promise<void> {
-    const oldArgs: unknown[] = []
+    const oldExpected: Array<{ wildcard: boolean, value?: unknown }> = []
     for (const arg of item.old.args) {
-      oldArgs.push(await this.evaluateExpression(arg, rule, match.constraints, match.bindings, false))
+      if (arg.type === 'variable' && arg.name === '_') {
+        oldExpected.push({ wildcard: true })
+      } else {
+        const val = await this.evaluateExpression(arg, rule, match.constraints, match.bindings, false)
+        oldExpected.push({ wildcard: false, value: val })
+      }
     }
 
-    const toRemove = this.store.lookup(item.old.name, oldArgs.length)
-      .filter((c) => {
-        if (c.args.length !== oldArgs.length) return false
-        return c.args.every((v, i) => v === oldArgs[i])
-      })
-    for (const c of toRemove) {
-      this.store.remove(c.id)
+    const matchesOld = (c: ConstraintRecord): boolean => {
+      if (c.name !== item.old.name || c.args.length !== oldExpected.length) return false
+      return c.args.every((v, i) => oldExpected[i]!.wildcard || v === oldExpected[i]!.value)
     }
 
     const newArgs: unknown[] = []
@@ -1798,7 +2017,27 @@ export class CHREngine {
       newArgs.push(await this.evaluateExpression(arg, rule, match.constraints, match.bindings, false))
     }
     this.validateConstraintArity(item.constraint.name, newArgs.length)
-    this.store.add(item.constraint.name, newArgs)
+
+    // Prefer updating the matched head constraint(s) in-place so their IDs are preserved
+    const matchedTargets = match.constraints.filter((c) => this.store.has(c.id) && matchesOld(c))
+    if (matchedTargets.length > 0) {
+      for (const target of matchedTargets) {
+        this.store.update(target.id, item.constraint.name, newArgs)
+      }
+      return
+    }
+
+    // Otherwise update matching constraints in the store
+    const storeTargets = this.store.lookup(item.old.name, oldExpected.length).filter(matchesOld)
+    if (storeTargets.length > 0) {
+      const [first, ...rest] = storeTargets
+      this.store.update(first!.id, item.constraint.name, newArgs)
+      for (const c of rest) {
+        this.store.remove(c.id)
+      }
+    } else {
+      this.store.add(item.constraint.name, newArgs)
+    }
   }
 
   /**
@@ -1899,21 +2138,33 @@ export class CHREngine {
       this.validateHostCallsInExpression(guard, rule, 'function')
     }
 
-    for (const item of rule.body) {
-      if (item.type === 'constraint') {
-        this.validateConstraintArity(item.constraint.name, item.constraint.args.length)
-        for (const arg of item.constraint.args) {
-          this.validateHostCallsInExpression(arg, rule, 'function')
-        }
-      } else if (item.type === 'action') {
-        this.validateHostDeclaration(item.name, item.args.length, this.actionDeclarations, 'action', true, rule)
-      } else if (item.type === 'update') {
-        this.validateConstraintArity(item.constraint.name, item.constraint.args.length)
-        for (const arg of [...item.old.args, ...item.constraint.args]) {
-          this.validateHostCallsInExpression(arg, rule, 'function')
+    const validateBody = (items: RuleNode['body']) => {
+      for (const item of items) {
+        if (item.type === 'constraint') {
+          this.validateConstraintArity(item.constraint.name, item.constraint.args.length)
+          for (const arg of item.constraint.args) {
+            this.validateHostCallsInExpression(arg, rule, 'function')
+          }
+        } else if (item.type === 'action') {
+          this.validateHostDeclaration(item.name, item.args.length, this.actionDeclarations, 'action', true, rule)
+          for (const arg of item.args) {
+            this.validateHostCallsInExpression(arg, rule, 'function')
+          }
+        } else if (item.type === 'update') {
+          this.validateConstraintArity(item.constraint.name, item.constraint.args.length)
+          for (const arg of [...item.old.args, ...item.constraint.args]) {
+            this.validateHostCallsInExpression(arg, rule, 'function')
+          }
+        } else if (item.type === 'let') {
+          this.validateHostCallsInExpression(item.expr, rule, 'function')
+        } else if (item.type === 'disjunction') {
+          for (const branch of item.branches) {
+            validateBody(branch)
+          }
         }
       }
     }
+    validateBody(rule.body)
   }
 
   /**
@@ -2001,6 +2252,13 @@ export class CHREngine {
       return
     }
 
+    if (expr.type === 'array') {
+      for (const elem of expr.elements) {
+        this.validateHostCallsInExpression(elem, rule, kind)
+      }
+      return
+    }
+
     if (expr.type !== 'call') {
       return
     }
@@ -2035,7 +2293,12 @@ export class CHREngine {
       throw new CHRExecutionError(`Host ${kind} ${name}/${arity} violates declared arity ${declaredArity}.`, rule?.span)
     }
 
-    if (requireDeclaration && (declarations.size > 0 || this.strictHostDeclarations) && declaredArity === undefined) {
+    if (
+      requireDeclaration &&
+      (declarations.size > 0 || this.strictHostDeclarations) &&
+      declaredArity === undefined &&
+      (this.strictHostDeclarations || kind !== 'function' || !Object.hasOwn(BuiltinFunctions, name))
+    ) {
       throw new CHRExecutionError(`Host ${kind} ${name}/${arity} is not declared in source. Use "${kind}s ${name}/${arity};" in the rule source.`, rule?.span)
     }
   }

@@ -1,7 +1,42 @@
-import type { RuleNode, ConstraintPattern, BodyItem, BodyConstraint } from './ast.js'
+import type { RuleNode, ConstraintPattern, BodyItem, BodyConstraint, Expression } from './ast.js'
 import type { ConstraintRecord } from './constraint.js'
 import { detectLinearRecursion, chainIdentity, cloneExpr } from './unfolder-utils.js'
 import { RecursionTracker } from './recursion-tracker.js'
+
+function substituteVarInExpr (expr: Expression, varName: string, replacement: Expression): Expression {
+  if (expr.type === 'variable') {
+    return expr.name === varName ? cloneExpr(replacement) : cloneExpr(expr)
+  }
+  if (expr.type === 'literal') {
+    return cloneExpr(expr)
+  }
+  if (expr.type === 'unary') {
+    return {
+      ...expr,
+      operand: substituteVarInExpr(expr.operand, varName, replacement)
+    }
+  }
+  if (expr.type === 'binary') {
+    return {
+      ...expr,
+      left: substituteVarInExpr(expr.left, varName, replacement),
+      right: substituteVarInExpr(expr.right, varName, replacement)
+    }
+  }
+  if (expr.type === 'call') {
+    return {
+      ...expr,
+      args: expr.args.map(a => substituteVarInExpr(a, varName, replacement))
+    }
+  }
+  if (expr.type === 'array') {
+    return {
+      ...expr,
+      elements: expr.elements.map(e => substituteVarInExpr(e, varName, replacement))
+    }
+  }
+  return cloneExpr(expr)
+}
 
 export interface UnfolderOptions {
   enabled?: boolean
@@ -35,6 +70,10 @@ export class RecursionUnfolder {
 
   get enabled (): boolean {
     return this.options.enabled
+  }
+
+  get maxUnfoldings (): number {
+    return this.options.maxUnfoldings
   }
 
   reset (): void {
@@ -162,34 +201,52 @@ export class RecursionUnfolder {
       return c.name === head.name && c.args.length === head.args.length
     })
 
-    const kept: ConstraintPattern[] = [
+    const kept: ConstraintPattern[] = []
+
+    const removed: ConstraintPattern[] = [
       {
         name: '_unfold_trigger',
         args: [{ type: 'literal', value: k } as const]
       },
-      ...rule.kept
+      ...rule.kept,
+      ...rule.removed
     ]
 
-    const removed = [...rule.removed]
+    const headVarName = head.args[0]?.type === 'variable' ? head.args[0].name : undefined
+    const recursiveConstraintItem = recursiveBodyIndex >= 0 ? (rule.body[recursiveBodyIndex] as BodyConstraint | undefined) : undefined
+    const stepExpr = recursiveConstraintItem?.constraint.args[0]
 
+    const unfoldedGuards: Expression[] = []
     const newBody: BodyItem[] = []
-    for (let i = 0; i < rule.body.length; i++) {
-      const item = rule.body[i]
-      if (!item) {
-        continue
-      }
-      if (i === recursiveBodyIndex && item.type === 'constraint') {
-        const recursiveConstraint = (item as BodyConstraint).constraint
-        for (let j = 0; j < k; j++) {
-          newBody.push({
-            type: 'constraint',
-            constraint: {
-              ...recursiveConstraint,
-              args: recursiveConstraint.args.map(cloneExpr)
-            }
-          } as BodyConstraint)
+
+    if (headVarName && stepExpr && recursiveConstraintItem) {
+      let currentVarExpr: Expression = { type: 'variable', name: headVarName }
+      for (let step = 0; step < k; step++) {
+        for (const g of rule.guard) {
+          unfoldedGuards.push(substituteVarInExpr(g, headVarName, currentVarExpr))
         }
-      } else {
+        for (let i = 0; i < rule.body.length; i++) {
+          const item = rule.body[i]
+          if (!item || i === recursiveBodyIndex) continue
+          newBody.push(item)
+        }
+        currentVarExpr = substituteVarInExpr(stepExpr, headVarName, currentVarExpr)
+      }
+      newBody.push({
+        type: 'constraint',
+        constraint: {
+          ...recursiveConstraintItem.constraint,
+          args: [
+            currentVarExpr,
+            ...recursiveConstraintItem.constraint.args.slice(1).map(cloneExpr)
+          ]
+        }
+      } as BodyConstraint)
+    } else {
+      unfoldedGuards.push(...rule.guard.map(cloneExpr))
+      for (let i = 0; i < rule.body.length; i++) {
+        const item = rule.body[i]
+        if (!item) continue
         newBody.push(item)
       }
     }
@@ -201,8 +258,8 @@ export class RecursionUnfolder {
       kept,
       removed,
       body: newBody,
-      guard: [...rule.guard],
-      priority: (rule.priority ?? 0) + k
+      guard: unfoldedGuards,
+      priority: (rule.priority ?? 0) + 100 + k
     }
   }
 
@@ -233,9 +290,9 @@ export class RecursionUnfolder {
         args: argExprs
       }],
       removed: [],
-      guard: [],
+      guard: rule.guard.map(cloneExpr),
       body: [mipConstraint],
-      priority: (rule.priority ?? 0) + 1
+      priority: (rule.priority ?? 0) - 10
     }
   }
 

@@ -40,7 +40,7 @@ export interface StoreSnapshotEntry {
  */
 export interface ConstraintStoreHooks {
   onAdd?: (record: ConstraintRecord) => void
-  onRemove?: (id: number) => void
+  onRemove?: (record: ConstraintRecord) => void
 }
 
 /**
@@ -114,6 +114,7 @@ export class ConstraintStore {
    * @returns The newly created `ConstraintRecord`.
    */
   add (name: string, args: unknown[], metadata?: Record<string, unknown>): ConstraintRecord {
+    this._invalid = false
     const record = createConstraint(this.nextId++, name, args, metadata)
     this.byId.set(record.id, record)
 
@@ -188,17 +189,44 @@ export class ConstraintStore {
     // Remove from argument index
     this.argumentIndex.remove(record)
 
-    if (this.byId.size === 0) {
-      this.nextId = 1
-    }
-
     this.lookupCache.clear()
 
-    this.hooks.onRemove?.(id)
+    this.hooks.onRemove?.(record)
 
     this.checkInvariants()
 
     return true
+  }
+
+  /**
+   * Update an existing constraint record in-place while preserving its ID.
+   */
+  update (id: number, name: string, args: unknown[], metadata?: Record<string, unknown>): ConstraintRecord | undefined {
+    const existing = this.byId.get(id)
+    if (!existing) {
+      return undefined
+    }
+
+    const oldFunctor = createFunctor(existing.name, existing.arity)
+    const oldIds = this.byFunctor.get(oldFunctor)
+    oldIds?.delete(id)
+    if (oldIds && oldIds.size === 0) {
+      this.byFunctor.delete(oldFunctor)
+    }
+    this.argumentIndex.remove(existing)
+
+    const updated = createConstraint(id, name, args, metadata ?? existing.metadata)
+    this.byId.set(id, updated)
+
+    const newFunctor = createFunctor(name, args.length)
+    const newIds = this.byFunctor.get(newFunctor) ?? new Set<number>()
+    newIds.add(id)
+    this.byFunctor.set(newFunctor, newIds)
+    this.argumentIndex.add(updated)
+
+    this.lookupCache.clear()
+    this.checkInvariants()
+    return updated
   }
 
   /**
@@ -285,8 +313,8 @@ export class ConstraintStore {
   clear (): void {
     this.byId.clear()
     this.byFunctor.clear()
+    this.lookupCache.clear()
     this.argumentIndex.clear()
-    this.nextId = 1
     this._invalid = false
   }
 
@@ -300,8 +328,8 @@ export class ConstraintStore {
   invalidate (): void {
     this.byId.clear()
     this.byFunctor.clear()
+    this.lookupCache.clear()
     this.argumentIndex.clear()
-    this.nextId = 1
     this._invalid = true
   }
 
@@ -438,8 +466,8 @@ export class ConstraintStore {
    */
   private assertInvariants (): void {
     if (this.byId.size === 0) {
-      if (this.nextId !== 1) {
-        throw new Error('Store invariant violated: empty store but nextId is not 1')
+      if (this.nextId < 1) {
+        throw new Error('Store invariant violated: empty store has nextId < 1')
       }
       return
     }
@@ -449,8 +477,8 @@ export class ConstraintStore {
       if (id > maxId) maxId = id
     }
 
-    if (this.nextId !== maxId + 1) {
-      throw new Error(`Store invariant violated: nextId ${this.nextId} should be maxId+1=${maxId + 1}`)
+    if (this.nextId <= maxId) {
+      throw new Error(`Store invariant violated: nextId ${this.nextId} should be > maxId=${maxId}`)
     }
 
     const byName: Record<string, Set<number>> = {}

@@ -477,8 +477,6 @@ export class ArgumentIndex {
     for (const index of this.compositeIndexes.values()) {
       index.clear()
     }
-    this.singleIndexes.clear()
-    this.compositeIndexes.clear()
   }
 
   /**

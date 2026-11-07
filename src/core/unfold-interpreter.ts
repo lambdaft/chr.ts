@@ -51,7 +51,8 @@ export class UnfoldInterpreter {
         ]
       }],
       guard: [],
-      body: []
+      body: [],
+      priority: 50
     })
 
     rules.push({
@@ -76,10 +77,14 @@ export class UnfoldInterpreter {
             ]
           }
         } as BodyConstraint
-      ]
+      ],
+      priority: 51
     })
 
-    let k = this.maxUnfoldings
+    let k = 1
+    while (k * 2 <= this.maxUnfoldings) {
+      k *= 2
+    }
     while (k >= 2) {
       rules.push({
         name: `mip_${k}`,
@@ -136,9 +141,10 @@ export class UnfoldInterpreter {
               ]
             }
           } as BodyConstraint
-        ]
+        ],
+        priority: 50 + k
       })
-      k = k / 2
+      k = Math.floor(k / 2)
     }
 
     rules.push({

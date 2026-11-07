@@ -30,7 +30,7 @@ import { CHRExecutionError } from './errors.js'
  */
 export function numeric(value: unknown): number {
   if (typeof value !== 'number') {
-    throw new CHRExecutionError('Numeric operation requires number operands.')
+    throw new CHRExecutionError('Expected number: numeric operation requires number operands.')
   }
   return value
 }

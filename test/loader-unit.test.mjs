@@ -6,7 +6,7 @@ import { defineHostModule } from '../dist/core/host.js'
 test('createEngine - defaults', () => {
   const engine = createEngine()
   assert.ok(engine)
-  assert.equal(engine.maxRuleFirings, 1000) // Default from CHREngine
+  assert.equal(engine.maxRuleFirings, 10000) // Default from CHREngine
   assert.equal(engine.getRules().length, 0)
 })
 
@@ -18,7 +18,7 @@ test('createEngine - maxRuleFirings override', () => {
 test('createEngine - builtins registration', () => {
   const engine = createEngine({ source: '', builtins: true })
   // Should have builtins registered (e.g. gt, eq, add)
-  assert.ok(engine.hostModules.length > 0)
+  assert.ok(engine.hostModules.size > 0)
 })
 
 test('createEngine - custom host module', () => {
@@ -26,7 +26,7 @@ test('createEngine - custom host module', () => {
     functions: { custom_fn: () => true }
   })
   const engine = createEngine({ source: '', host: customHost })
-  assert.ok(engine.hostModules.includes(customHost))
+  assert.ok([...engine.hostModules.values()].includes(customHost))
 })
 
 test('createEngine - with source rules', () => {
@@ -35,6 +35,6 @@ test('createEngine - with source rules', () => {
 })
 
 test('createEngine - trims empty source', () => {
-  const engine = createEngine({ source: '   \\n  ' })
+  const engine = createEngine({ source: '   \n  ' })
   assert.equal(engine.getRules().length, 0)
 })

@@ -28,7 +28,7 @@ test('engine enters error state after host function throws during fixpoint', asy
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> boom() | ok;')
+  engine.addRules('fail @ a() ==> true | ok(boom());')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -42,7 +42,7 @@ test('engine stays in error state after failed assertion', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> boom() | ok;')
+  engine.addRules('fail @ a() ==> true | ok(boom());')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -60,7 +60,7 @@ test('engine requires new instance after error state', async () => {
   engine.registerFunction('boom', () => {
     throw new Error('kaboom')
   })
-  engine.addRules('fail @ a() ==> boom() | ok;')
+  engine.addRules('fail @ a() ==> true | ok(boom());')
 
   await assert.rejects(async () => {
     await engine.assert('a', [])
@@ -175,7 +175,7 @@ test('engine snapshot reflects state at time of call', async () => {
   engine.clear()
   const snap3 = engine.snapshot()
   assert.equal(snap3.constraints.length, 0)
-  assert.equal(snap3.history, null || Object.keys(snap3.history || {}).length === 0)
+  assert.deepEqual(snap3.history, {})
 })
 
 test('engine getRules returns copy not reference', () => {
